@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Register</title>
+    <link rel="stylesheet" type="text/css" href="static/navbar.css">
+    <link rel="stylesheet" type="text/css" href="static/register.css">
+</head>
+<body>
+
+{% include 'components/navbar.html' %}
+
+<h1>BIG BRAIN</h1>
+
+<main>
+    <section class="login-register">
+        <div class="container">
+            <div class="forms">
+                <div class="register-form">
+                    <h2>Register</h2>
+                    <form action="/register" method="POST">
+                        <label for="username">Username:</label>
+                        <input type="text" id="username" name="username" required>
+                        <label for="email">Email:</label>
+                        <input type="email" id="registerEmail" name="email" required>
+                        <label for="password">Password:</label>
+                        <input type="password" id="registerPassword" name="password" required>
+                        <button type="submit">Register</button>
+                    </form>
+                </div>
+            </div>
+        </div>
+    </section>
+</main>
+
+</body>
+</html>
