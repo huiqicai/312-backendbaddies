@@ -1,21 +1,20 @@
-from flask import Flask, render_template, request, redirect, make_response
+from flask import Flask, render_template, request, redirect, make_response, send_file
 from flask_pymongo import PyMongo
 from flask_bcrypt import Bcrypt
 from pymongo import MongoClient
 import hashlib
 import os
-from datetime import datetime, timedelta
 
 app = Flask(__name__, template_folder='Frontend', static_folder='Frontend/static')
 
-@app.route("/register_page", methods=["GET"])
-def register():       
-    return render_template("register_page.html")
-
 bcrypt = Bcrypt(app)
+
 mongo_client = MongoClient('mongo')
+
 db = mongo_client['user_auth_db']
+
 users_collection = db['users']
+
 tokens_collection = db['tokens']
 
 def hash_password(password):
@@ -33,13 +32,33 @@ def generate_auth_token(username):
     })
     return token
 
+@app.route("/register_page", methods=["GET"])
+def register():
+    response = make_response(render_template("register_page.html"))
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    return response
+
 @app.route("/")
 def home():
     username = request.cookies.get("username")
-    return render_template("login.html", username=username)
+    response = make_response(render_template("login.html", username=username))
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    return response
 
-@app.route("/register_user", methods=["POST"], endpoint = "register_user")
-def register():
+@app.route("/about")
+def about():
+    response = make_response(render_template("about.html"))
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    return response
+
+@app.route("/static/images/cat.jpg")
+def serve_cat_image():
+    response = send_file("Frontend/static/images/cat.jpg", mimetype="image/jpeg")
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    return response
+
+@app.route("/register_user", methods=["POST"], endpoint="register_user")
+def register_user():
     username = request.form.get("username")
     password = request.form.get("password")
     email = request.form.get("email")
@@ -47,7 +66,7 @@ def register():
     if not users_collection.find_one({"username": username}):
         if not users_collection.find_one({"email": email}):
             hashed_pw = hash_password(password)
-            user = {"email": email,"username": username, "password": hashed_pw}
+            user = {"email": email, "username": username, "password": hashed_pw}
             users_collection.insert_one(user)
             response = make_response(redirect("/"))
             response.headers["X-Content-Type-Options"] = "nosniff"
@@ -57,7 +76,7 @@ def register():
         response.headers["X-Content-Type-Options"] = "nosniff"
         response.headers["Content-Type"] = "application/json"
         return response
-    
+
 @app.route("/login", methods=["POST"])
 def login():
     username = request.form.get("username")
@@ -69,11 +88,12 @@ def login():
         return "Invalid credentials", 401
 
     auth_token = generate_auth_token(username)
+
     response = make_response(redirect("/"))
-    #response.set_cookie("username", username, httponly=True, max_age=3600)
+    
     response.set_cookie("auth_token", auth_token, httponly=True, max_age=3600)
+
     response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["Content-Type"] = "text/html; charset=utf-8"
     return response
 
 if __name__ == "__main__":
