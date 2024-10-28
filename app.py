@@ -122,6 +122,7 @@ def upload_quiz():
     title = escapeHTML(request.form.get("title"))
     questions = [escapeHTML(q) for q in request.form.getlist("questions[]")]
     answers = [escapeHTML(a) for a in request.form.getlist("answers[]")]
+    answers = [ele.split(',') for ele in answers]
     correct_answers = [escapeHTML(a) for a in request.form.getlist("correct_answers[]")]
     
     username = request.cookies.get("username")
@@ -129,13 +130,15 @@ def upload_quiz():
     if username:
         quiz = {
             "title": title,
-            "questions": questions,
-            "answers": answers,
-            "correct_answers": correct_answers,  
+            "questions": {
+                questions[i]: (correct_answers[i].strip(), [ans.strip() for ans in answers[i] if ans != correct_answers[i]])
+                for i in range(len(questions))
+            },
             "created_by": username, 
             "likes": 0,  
             "comments": [] 
         }
+        print(quiz)
         quizzes_collection.insert_one(quiz)
         return redirect("/dashboard")
 
@@ -189,6 +192,18 @@ def interact():
 @app.route('/static/dashboard.js')
 def serve_dashboard_js():
     return send_file('Frontend/static/dashboard.js', mimetype='application/javascript')
+
+@app.route("/quiz/<quiz_id>")
+def quiz_details(quiz_id):
+    #testing
+    try:
+        quiz = quizzes_collection.find_one({"_id": ObjectId(quiz_id)})
+        if not quiz:
+            return "Invalid credentials", 401
+        return render_template('quizPage.html', quiz=quiz)
+    except Exception as e:
+        # Handle any exceptions (e.g., invalid ObjectId format)
+        return str(e), 400
 
 if __name__ == "__main__":
     app.run(debug=True, host='0.0.0.0', port=8080)

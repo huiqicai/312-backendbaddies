@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Dashboard</title>
+    <link rel="stylesheet" type="text/css" href="/static/navbar.css">
+    <link rel="stylesheet" type="text/css" href="/static/dashboard.css">
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+    <script src="/static/dashboard.js" defer></script> <!-- Link to external JS file -->
+</head>
+<body>
+
+{% include 'components/navbar.html' %} <!-- Import navbar for dashboard as well.-->
+
+
+<h1>Welcome, {{ username | e }}!</h1> <!-- Escaped username -->
+
+<h1>Upload Trivia Quiz</h1>
+<form action="/upload_quiz" method="POST">
+    <input type="text" name="title" placeholder="Quiz Title" required>
+    <div id="questions-container">
+        <input type="text" name="questions[]" placeholder="Question 1" required> <!-- Users have to fill this out in order to submit. -->
+        <input type="text" name="answers[]" placeholder="Choices (csv)" required>
+        <input type="text" name="correct_answers[]" placeholder="Correct Answer" required>
+    </div>
+    <button type="button" onclick="addQuestion()">Add Another Question</button>
+
+    <button type="submit">Upload Quiz</button> <!-- Button to allow user to add quiz to the website. -->
+</form>
+
+<h2>Available Quizzes</h2>
+<ul id="quizzes-list">
+    {% for quiz in quizzes %}
+    <li id="quiz-{{ quiz._id }}">
+        <h3>{{ quiz.title | e }}</h3>
+        <p>Created by: {{ quiz.created_by | e }}</p> <!-- Display the creator's username (Author of Quiz) -->
+        
+        <p>Likes: <span class="likes-count" id="like-count-{{ quiz._id }}">{{ quiz.likes }}</span></p>
+        
+        <button onclick="likeQuiz('{{ quiz._id }}')">Like/Unlike</button>
+        
+        <button onclick="toggleLikeDropdown('{{ quiz._id }}')">Show Likes</button>
+        
+        <button onclick="showDetails('{{ quiz._id }}')">Show Details</button>
+        
+        <div id="like-dropdown-{{ quiz._id }}" class="like-dropdown" style="display: none;">
+            
+            <ul id="likes-list-{{ quiz._id }}"></ul>
+        </div>
+        <div class="comments-section">
+            <h4>Comments:</h4>
+            <ul class="comments-list">
+                {% for comment in quiz.comments %}
+                <li>{{ comment.username | e }}: {{ comment.text | e }}</li> <!-- Escape both the username and comment -->
+                {% endfor %}
+            </ul>
+            <form onsubmit="submitComment(event, '{{ quiz._id }}')">
+                <input type="text" placeholder="Add a comment" required>
+                <button type="submit">Submit</button>
+            </form>
+        </div>
+    </li>
+    {% endfor %}
+</ul>
+
+</body>
+</html>
