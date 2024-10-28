@@ -112,7 +112,7 @@ def dashboard():
     
     username = request.cookies.get("username")
     
-    quizzes = list(quizzes_collection.find())  # Find every quiz that is created in our DB.
+    quizzes = list(quizzes_collection.find())  # find every quiz that is created in our Db
     
     message = request.args.get("message")
 
@@ -128,7 +128,7 @@ def upload_quiz():
     
     answers = [escapeHTML(a) for a in request.form.getlist("answers[]")]
     
-    correct_answers = [escapeHTML(a) for a in request.form.getlist("correct_answers[]")]  # Capture correct answers
+    correct_answers = [escapeHTML(a) for a in request.form.getlist("correct_answers[]")]
     
     username = request.cookies.get("username")
 
@@ -137,10 +137,10 @@ def upload_quiz():
             "title": title,
             "questions": questions,
             "answers": answers,
-            "correct_answers": correct_answers,  # Store correct answers
-            "created_by": username,  # Store the username of the creator
-            "likes": 0,  # Init likes
-            "comments": []  # Init comments
+            "correct_answers": correct_answers,  
+            "created_by": username, 
+            "likes": 0,  
+            "comments": [] 
         }
         quizzes_collection.insert_one(quiz)
         return redirect("/dashboard")
@@ -166,7 +166,6 @@ def interact():
             })
 
             if existing_like:
-                # unlike the quiz
                 interactions_collection.delete_one({
                     "quiz_id": quiz_object_id,
                     "username": username,
@@ -175,7 +174,6 @@ def interact():
                 quizzes_collection.update_one({"_id": quiz_object_id}, {"$inc": {"likes": -1}})
                 action = "unliked"
             else:
-                # like the quiz
                 interactions_collection.insert_one({
                     "quiz_id": quiz_object_id,
                     "username": username,
@@ -184,7 +182,7 @@ def interact():
                 quizzes_collection.update_one({"_id": quiz_object_id}, {"$inc": {"likes": 1}})
                 action = "liked"
 
-            # get the updated list of different users who liked the quiz
+            # get updated list of different users who liked the quiz
             likes_users = [
                 interaction["username"] for interaction in interactions_collection.find({
                     "quiz_id": quiz_object_id,
