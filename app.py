@@ -109,11 +109,8 @@ def login():
 
 @app.route("/dashboard")
 def dashboard():
-    
     username = request.cookies.get("username")
-    
     quizzes = list(quizzes_collection.find())  # find every quiz that is created in our Db
-    
     message = request.args.get("message")
 
     response = make_response(render_template("dashboard.html", username=username, quizzes=quizzes, message=message))
@@ -123,11 +120,8 @@ def dashboard():
 @app.route("/upload_quiz", methods=["POST"]) 
 def upload_quiz(): 
     title = escapeHTML(request.form.get("title"))
-    
     questions = [escapeHTML(q) for q in request.form.getlist("questions[]")]
-    
     answers = [escapeHTML(a) for a in request.form.getlist("answers[]")]
-    
     correct_answers = [escapeHTML(a) for a in request.form.getlist("correct_answers[]")]
     
     username = request.cookies.get("username")
@@ -150,9 +144,7 @@ def upload_quiz():
 @app.route("/interact", methods=["POST"])
 def interact():  
     username = request.cookies.get("username")
-    
     quiz_id = request.form.get("quiz_id")
-    
     interaction_type = request.form.get("type")
 
     if username:
