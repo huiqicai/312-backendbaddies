@@ -42,6 +42,8 @@
         
         <button onclick="toggleLikeDropdown('{{ quiz._id }}')">Show Likes</button>
         
+        <button onclick="showDetails('{{ quiz._id }}')">Show Details</button>
+        
         <div id="like-dropdown-{{ quiz._id }}" class="like-dropdown" style="display: none;">
             
             <ul id="likes-list-{{ quiz._id }}"></ul>
