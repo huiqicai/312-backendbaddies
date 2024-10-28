@@ -71,3 +71,7 @@ function submitComment(event, quizId) { // NEDS WORK
         $(event.target).find('input').val('');
     });
 }
+
+function showDetails(quizId){
+    window.location.href = `/quiz/${quizId}`;
+}

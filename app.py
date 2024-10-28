@@ -109,11 +109,8 @@ def login():
 
 @app.route("/dashboard")
 def dashboard():
-    
     username = request.cookies.get("username")
-    
-    quizzes = list(quizzes_collection.find())  # Find every quiz that is created in our DB.
-    
+    quizzes = list(quizzes_collection.find())  # find every quiz that is created in our Db
     message = request.args.get("message")
 
     response = make_response(render_template("dashboard.html", username=username, quizzes=quizzes, message=message))
@@ -121,42 +118,36 @@ def dashboard():
     return response
 
 @app.route("/upload_quiz", methods=["POST"]) 
-def upload_quiz():
-    
+def upload_quiz(): 
     title = escapeHTML(request.form.get("title"))
-    
     questions = [escapeHTML(q) for q in request.form.getlist("questions[]")]
-    
     answers = [escapeHTML(a) for a in request.form.getlist("answers[]")]
-    
-
-    correct_answers = [escapeHTML(a) for a in request.form.getlist("correct_answers[]")]  # Capture correct answers
+    answers = [ele.split(',') for ele in answers]
+    correct_answers = [escapeHTML(a) for a in request.form.getlist("correct_answers[]")]
     
     username = request.cookies.get("username")
 
     if username:
         quiz = {
             "title": title,
-            "questions": questions,
-            "answers": answers,
-            "correct_answers": correct_answers,  # Store correct answers
-            "created_by": username,  # Store the username of the creator
-            "likes": 0,  # Init likes
-            "comments": []  # Init comments
+            "questions": {
+                questions[i]: (correct_answers[i].strip(), [ans.strip() for ans in answers[i] if ans != correct_answers[i]])
+                for i in range(len(questions))
+            },
+            "created_by": username, 
+            "likes": 0,  
+            "comments": [] 
         }
+        print(quiz)
         quizzes_collection.insert_one(quiz)
         return redirect("/dashboard")
 
     return jsonify({"success": False, "message": "User not authenticated"}), 401
 
 @app.route("/interact", methods=["POST"])
-
-def interact():
-    
+def interact():  
     username = request.cookies.get("username")
-    
     quiz_id = request.form.get("quiz_id")
-    
     interaction_type = request.form.get("type")
 
     if username:
@@ -170,7 +161,6 @@ def interact():
             })
 
             if existing_like:
-                # Unlike the quiz
                 interactions_collection.delete_one({
                     "quiz_id": quiz_object_id,
                     "username": username,
@@ -179,7 +169,6 @@ def interact():
                 quizzes_collection.update_one({"_id": quiz_object_id}, {"$inc": {"likes": -1}})
                 action = "unliked"
             else:
-                # Like the quiz
                 interactions_collection.insert_one({
                     "quiz_id": quiz_object_id,
                     "username": username,
@@ -188,7 +177,7 @@ def interact():
                 quizzes_collection.update_one({"_id": quiz_object_id}, {"$inc": {"likes": 1}})
                 action = "liked"
 
-            # Get the updated list of different users who liked the quiz
+            # get updated list of different users who liked the quiz
             likes_users = [
                 interaction["username"] for interaction in interactions_collection.find({
                     "quiz_id": quiz_object_id,
@@ -203,6 +192,18 @@ def interact():
 @app.route('/static/dashboard.js')
 def serve_dashboard_js():
     return send_file('Frontend/static/dashboard.js', mimetype='application/javascript')
+
+@app.route("/quiz/<quiz_id>")
+def quiz_details(quiz_id):
+    #testing
+    try:
+        quiz = quizzes_collection.find_one({"_id": ObjectId(quiz_id)})
+        if not quiz:
+            return "Invalid credentials", 401
+        return render_template('quizPage.html', quiz=quiz)
+    except Exception as e:
+        # Handle any exceptions (e.g., invalid ObjectId format)
+        return str(e), 400
 
 if __name__ == "__main__":
     app.run(debug=True, host='0.0.0.0', port=8080)
