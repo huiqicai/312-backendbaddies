@@ -1,7 +1,8 @@
-from flask import Flask, render_template, request, redirect, make_response, send_file
+from flask import Flask, render_template, request, redirect, make_response, send_file, jsonify
 from flask_pymongo import PyMongo
 from flask_bcrypt import Bcrypt
 from pymongo import MongoClient
+from bson import ObjectId
 import hashlib
 import os
 
@@ -9,13 +10,17 @@ app = Flask(__name__, template_folder='Frontend', static_folder='Frontend/static
 
 bcrypt = Bcrypt(app)
 
-mongo_client = MongoClient('mongo')
+mongo_client = MongoClient('mongo')  # init mongo
 
 db = mongo_client['user_auth_db']
 
 users_collection = db['users']
 
 tokens_collection = db['tokens']
+
+quizzes_collection = db['quizzes']
+
+interactions_collection = db['interactions']
 
 def hash_password(password):
     return bcrypt.generate_password_hash(password).decode('utf-8')
@@ -32,6 +37,9 @@ def generate_auth_token(username):
     })
     return token
 
+def escapeHTML(line):
+    return line.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
+
 @app.route("/register_page", methods=["GET"])
 def register():
     response = make_response(render_template("register_page.html"))
@@ -40,8 +48,7 @@ def register():
 
 @app.route("/")
 def home():
-    username = request.cookies.get("username")
-    response = make_response(render_template("login.html", username=username))
+    response = make_response(render_template("login.html"))
     response.headers["X-Content-Type-Options"] = "nosniff"
     return response
 
@@ -51,50 +58,147 @@ def about():
     response.headers["X-Content-Type-Options"] = "nosniff"
     return response
 
-@app.route("/static/images/cat.jpg")
+@app.route("/static/cat.jpg")
 def serve_cat_image():
-    response = send_file("Frontend/static/images/cat.jpg", mimetype="image/jpeg")
+    response = send_file("Frontend/static/cat.jpg", mimetype="image/jpeg")
     response.headers["X-Content-Type-Options"] = "nosniff"
     return response
 
-@app.route("/register_user", methods=["POST"], endpoint="register_user")
+@app.route("/register_user", methods=["POST"])
 def register_user():
-    username = request.form.get("username")
+    username = escapeHTML(request.form.get("username"))
     password = request.form.get("password")
-    email = request.form.get("email")
+    email = escapeHTML(request.form.get("email"))
 
-    if not users_collection.find_one({"username": username}):
-        if not users_collection.find_one({"email": email}):
-            hashed_pw = hash_password(password)
-            user = {"email": email, "username": username, "password": hashed_pw}
-            users_collection.insert_one(user)
-            response = make_response(redirect("/"))
-            response.headers["X-Content-Type-Options"] = "nosniff"
-            return response
-    else:
-        response = make_response("Username already taken", 400)
-        response.headers["X-Content-Type-Options"] = "nosniff"
-        response.headers["Content-Type"] = "application/json"
-        return response
+    if users_collection.find_one({"username": username}): 
+        return jsonify({"success": False, "message": "Username already taken, please use another."}), 400
+    if users_collection.find_one({"email": email}):
+        return jsonify({"success": False, "message": "Email already registered with an account!"}), 400
+
+    hashed_pw = hash_password(password)
+    user = {"email": email, "username": username, "password": hashed_pw}
+    users_collection.insert_one(user)
+
+    response = make_response(redirect("/?message=Registered Successfully"))
+    
+    response.set_cookie("username", username)  
+    
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    return response
 
 @app.route("/login", methods=["POST"])
 def login():
-    username = request.form.get("username")
+    email = escapeHTML(request.form.get("email"))
     password = request.form.get("password")
-    email = request.form.get("email")
     user = users_collection.find_one({"email": email})
 
     if not user or not check_password(user["password"], password):
-        return "Invalid credentials", 401
+        return jsonify({"success": False, "message": "Invalid credentials, try again."}), 401
 
-    auth_token = generate_auth_token(username)
+    auth_token = generate_auth_token(user["username"])
 
-    response = make_response(redirect("/"))
+    response = make_response(redirect("/dashboard"))
     
     response.set_cookie("auth_token", auth_token, httponly=True, max_age=3600)
+    
+    response.set_cookie("username", user["username"])  # Set the username cookie. 
+    
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    
+    return response
 
+@app.route("/dashboard")
+def dashboard():
+    
+    username = request.cookies.get("username")
+    
+    quizzes = list(quizzes_collection.find())  # Find every quiz that is created in our DB.
+    
+    message = request.args.get("message")
+
+    response = make_response(render_template("dashboard.html", username=username, quizzes=quizzes, message=message))
     response.headers["X-Content-Type-Options"] = "nosniff"
     return response
+
+@app.route("/upload_quiz", methods=["POST"]) 
+def upload_quiz(): 
+    title = escapeHTML(request.form.get("title"))
+    
+    questions = [escapeHTML(q) for q in request.form.getlist("questions[]")]
+    
+    answers = [escapeHTML(a) for a in request.form.getlist("answers[]")]
+    
+    correct_answers = [escapeHTML(a) for a in request.form.getlist("correct_answers[]")]  # Capture correct answers
+    
+    username = request.cookies.get("username")
+
+    if username:
+        quiz = {
+            "title": title,
+            "questions": questions,
+            "answers": answers,
+            "correct_answers": correct_answers,  # Store correct answers
+            "created_by": username,  # Store the username of the creator
+            "likes": 0,  # Init likes
+            "comments": []  # Init comments
+        }
+        quizzes_collection.insert_one(quiz)
+        return redirect("/dashboard")
+
+    return jsonify({"success": False, "message": "User not authenticated"}), 401
+
+@app.route("/interact", methods=["POST"])
+def interact():  
+    username = request.cookies.get("username")
+    
+    quiz_id = request.form.get("quiz_id")
+    
+    interaction_type = request.form.get("type")
+
+    if username:
+        quiz_object_id = ObjectId(quiz_id)
+
+        if interaction_type == "like":
+            existing_like = interactions_collection.find_one({
+                "quiz_id": quiz_object_id,
+                "username": username,
+                "type": "like"
+            })
+
+            if existing_like:
+                # unlike the quiz
+                interactions_collection.delete_one({
+                    "quiz_id": quiz_object_id,
+                    "username": username,
+                    "type": "like"
+                })
+                quizzes_collection.update_one({"_id": quiz_object_id}, {"$inc": {"likes": -1}})
+                action = "unliked"
+            else:
+                # like the quiz
+                interactions_collection.insert_one({
+                    "quiz_id": quiz_object_id,
+                    "username": username,
+                    "type": "like"
+                })
+                quizzes_collection.update_one({"_id": quiz_object_id}, {"$inc": {"likes": 1}})
+                action = "liked"
+
+            # get the updated list of different users who liked the quiz
+            likes_users = [
+                interaction["username"] for interaction in interactions_collection.find({
+                    "quiz_id": quiz_object_id,
+                    "type": "like"
+                })
+            ]
+
+            return jsonify({"success": True, "action": action, "likes_users": likes_users})
+
+    return jsonify({"success": False, "message": "User not authenticated"}), 401
+
+@app.route('/static/dashboard.js')
+def serve_dashboard_js():
+    return send_file('Frontend/static/dashboard.js', mimetype='application/javascript')
 
 if __name__ == "__main__":
     app.run(debug=True, host='0.0.0.0', port=8080)
