@@ -7,12 +7,11 @@
     <link rel="stylesheet" type="text/css" href="/static/navbar.css">
     <link rel="stylesheet" type="text/css" href="/static/dashboard.css">
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="/static/dashboard.js" defer></script> <!-- Link to external JS file -->
+    <script src="/static/dashboard.js" defer></script>
 </head>
 <body>
 
 {% include 'components/navbar.html' %} <!-- Import navbar for dashboard as well.-->
-
 
 <h1>Welcome, {{ username | e }}!</h1> <!-- Escaped username -->
 
@@ -24,7 +23,8 @@
         <input type="text" name="answers[]" placeholder="Choices (csv)" required>
         <input type="text" name="correct_answers[]" placeholder="Correct Answer" required>
     </div>
-    <button type="button" onclick="addQuestion()">Add Another Question</button>
+    
+    <!-- <button type="button" onclick="addQuestion()">Add Another Question</button> --> <!-- Commented out for now -->
 
     <button type="submit">Upload Quiz</button> <!-- Button to allow user to add quiz to the website. -->
 </form>
