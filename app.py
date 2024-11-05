@@ -144,6 +144,29 @@ def upload_quiz():
 
     return jsonify({"success": False, "message": "User not authenticated"}), 401
 
+@app.route("/comment_quiz/<quiz_id>", methods=["POST"])
+def comment_quiz(quiz_id):
+    username = request.cookies.get("username")
+    comment_text = escapeHTML(request.form.get("comment"))
+
+    if not username:
+        return jsonify({"success": False, "message": "User not authenticated"}), 401
+
+    quiz_object_id = ObjectId(quiz_id)
+    quiz = quizzes_collection.find_one({"_id": quiz_object_id})
+
+    if quiz:
+        comment = {"username": username, "text": comment_text}
+        quizzes_collection.update_one(
+            {"_id": quiz_object_id},
+            {"$push": {"comments": comment}}
+        )
+        
+        updated_comments = quizzes_collection.find_one({"_id": quiz_object_id})["comments"]
+        return jsonify(updated_comments)
+    
+    return jsonify({"success": False, "message": "Quiz not found"}), 404
+
 @app.route("/interact", methods=["POST"])
 def interact():  
     username = request.cookies.get("username")

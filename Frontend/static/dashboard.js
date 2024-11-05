@@ -55,23 +55,23 @@ function toggleLikeDropdown(quizId) { // Method that has the dropdown to see lik
     dropdown.toggle(); // Onclick dropdown to display the list. 
 }
 
-function submitComment(event, quizId) { // NEDS WORK
+function submitComment(event, quizId) {
     event.preventDefault();
 
-    const commentText = $('<div/>').text($(event.target).find('input').val()).html();
+    const commentInput = $(event.target).find('input');
+    const commentText = $('<div/>').text(commentInput.val()).html(); 
 
     $.post(`/comment_quiz/${quizId}`, { comment: commentText }, function(comments) {
+        const commentsList = $(`#quiz-${quizId} .comments-list`);
+        commentsList.empty(); 
 
-        const lastComment = comments[comments.length - 1];
+        comments.forEach(function(comment) {
+            const commentHtml = `<li>${$('<div/>').text(comment.username).html()}: ${$('<div/>').text(comment.text).html()}</li>`;
+            commentsList.append(commentHtml);
+        });
 
-        const commentHtml = `<li>${$('<div/>').text(lastComment.username).html()}: ${$('<div/>').text(lastComment.text).html()}</li>`;
-        
-        $(`#quiz-${quizId} .comments-list`).append(commentHtml);
-        
-        $(event.target).find('input').val('');
+        commentInput.val(''); 
+    }).fail(function(xhr) {
+        alert(xhr.responseJSON ? xhr.responseJSON.message : "An error occurred while submitting the comment.");
     });
-}
-
-function showDetails(quizId){
-    window.location.href = `/quiz/${quizId}`;
 }
