@@ -19,12 +19,14 @@
 <form action="/upload_quiz" method="POST">
     <input type="text" name="title" placeholder="Quiz Title" required>
     <div id="questions-container">
-        <input type="text" name="questions[]" placeholder="Question 1" required> <!-- Users have to fill this out in order to submit. -->
-        <input type="text" name="answers[]" placeholder="Choices (csv)" required>
-        <input type="text" name="correct_answers[]" placeholder="Correct Answer" required>
+        <div>
+            <input type="text" name="questions[]" placeholder="Question 1" required> <!-- Users have to fill this out in order to submit. -->
+            <input type="text" name="answers[]" placeholder="Choices (csv) *" required>
+            <input type="text" name="correct_answers[]" placeholder="Correct Answer *" required>
+        </div>
     </div>
     
-    <!-- <button type="button" onclick="addQuestion()">Add Another Question</button> --> <!-- Commented out for now -->
+    <button type="button" onclick="addQuestion()">Add Another Question</button>
 
     <button type="submit">Upload Quiz</button> <!-- Button to allow user to add quiz to the website. -->
 </form>
