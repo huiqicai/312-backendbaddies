@@ -107,6 +107,14 @@ def login():
     
     return response
 
+@app.route("/logout")
+def logout():
+    response = make_response(redirect("/"))
+    response.delete_cookie("username")
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    return response
+
+
 @app.route("/dashboard")
 def dashboard():
     username = request.cookies.get("username")
