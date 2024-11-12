@@ -110,6 +110,7 @@ def login():
 @app.route("/logout")
 def logout():
     response = make_response(redirect("/"))
+    response.delete_cookie("auth_token")
     response.delete_cookie("username")
     response.headers["X-Content-Type-Options"] = "nosniff"
     return response
@@ -117,11 +118,16 @@ def logout():
 
 @app.route("/dashboard")
 def dashboard():
+    auth_token = request.cookies.get('auth_token')
+    token_data = tokens_collection.find_one({"token": auth_token}) if auth_token else None
+    is_not_logged_in = token_data is None
+    username = token_data['username'] if token_data else None
+
     username = request.cookies.get("username")
     quizzes = list(quizzes_collection.find())  # find every quiz that is created in our Db
     message = request.args.get("message")
 
-    response = make_response(render_template("dashboard.html", username=username, quizzes=quizzes, message=message))
+    response = make_response(render_template("dashboard.html", username=username, quizzes=quizzes, message=message, is_not_logged_in=is_not_logged_in))
     response.headers["X-Content-Type-Options"] = "nosniff"
     return response
 
