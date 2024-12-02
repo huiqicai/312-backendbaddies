@@ -23,10 +23,6 @@ quizzes_collection = db['quizzes']
 interactions_collection = db['interactions']
 
 
-
-def escapeHTML(line):
-    return line.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-
 def hash_password(password):
     return bcrypt.generate_password_hash(password).decode('utf-8')
 
@@ -184,10 +180,10 @@ def upload_quiz():
     if not username:
         return redirect("/?message=Please log in.")
 
-    title = escapeHTML(request.form.get("title"))
-    questions = [escapeHTML(q) for q in request.form.getlist("questions[]")]
-    answers = [escapeHTML(a) for a in request.form.getlist("answers[]")]
-    correct_answers = [escapeHTML(ca) for ca in request.form.getlist("correct_answers[]")]
+    title = escape(request.form.get("title"))
+    questions = [escape(q) for q in request.form.getlist("questions[]")]
+    answers = [escape(a) for a in request.form.getlist("answers[]")]
+    correct_answers = [escape(ca) for ca in request.form.getlist("correct_answers[]")]
 
     if len(questions) != len(answers) or len(questions) != len(correct_answers):
         return jsonify({"success": False, "message": "All fields must have the same number of entries."}), 400
@@ -214,7 +210,7 @@ def comment_quiz(quiz_id):
     if not username:
         return jsonify({"success": False, "message": "User not authenticated."}), 401
 
-    comment_text = escapeHTML(request.form.get("comment"))
+    comment_text = escape(request.form.get("comment"))
     quiz_object_id = ObjectId(quiz_id)
     comment = {"username": username, "text": comment_text}
     quizzes_collection.update_one({"_id": quiz_object_id}, {"$push": {"comments": comment}})
@@ -306,6 +302,7 @@ def quiz_details(quiz_id):
     except Exception as e:
         # Handle any exceptions (e.g., invalid ObjectId format)
         return str(e), 400
+
 
 if __name__ == "__main__":
     socketio.run(app, debug=True, host="0.0.0.0", port=8080)
