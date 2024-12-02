@@ -229,6 +229,17 @@ def get_likes(quiz_id):
 
     likes_users = quiz.get("likes_users", [])
     return jsonify({"success": True, "likes_users": likes_users})
+@app.route("/quiz/<quiz_id>")
+def quiz_details(quiz_id):
+    #testing
+    try:
+        quiz = quizzes_collection.find_one({"_id": ObjectId(quiz_id)})
+        if not quiz:
+            return "Invalid credentials", 401
+        return render_template('quizPage.html', quiz=quiz)
+    except Exception as e:
+        # Handle any exceptions (e.g., invalid ObjectId format)
+        return str(e), 400
 
 if __name__ == "__main__":
     socketio.run(app, debug=True, host="0.0.0.0", port=8080)

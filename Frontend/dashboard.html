@@ -8,15 +8,14 @@
     <link rel="stylesheet" type="text/css" href="/static/dashboard.css">
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
     <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
-    <script src="/static/dashboard.js" defer></script> <!-- Load the external JS file -->
+    <script src="/static/dashboard.js" defer></script> 
 </head>
 <body>
-    {% include 'components/navbar.html' %} <!-- Navbar included here -->
+    {% include 'components/navbar.html' %} 
 
     <div class="container">
-        <h1>Welcome, {{ username | e }}!</h1> <!-- Escaped username -->
+        <h1>Welcome, {{ username | e }}!</h1> 
 
-        <!-- Upload Quiz Section -->
         <section class="quiz-upload-section">
             <h2>Upload a Trivia Quiz</h2>
             <form action="/upload_quiz" method="POST" id="upload-quiz-form">
@@ -33,7 +32,6 @@
             </form>
         </section>
 
-        <!-- Available Quizzes Section -->
         <section class="available-quizzes">
             <h2>Available Quizzes</h2>
             <ul id="quizzes-list" class="quiz-list">
@@ -45,8 +43,8 @@
                         <p>Likes: <span class="likes-count" id="like-count-{{ quiz._id }}">{{ quiz.likes }}</span></p>
                         <button onclick="likeQuiz('{{ quiz._id }}')" class="button like-button">Like/Unlike</button>
                         <button onclick="showLikes('{{ quiz._id }}')" class="button show-likes-button">Show Likes</button>
+                        <button onclick="window.location.href='/quiz/{{ quiz._id }}'" class="button show-details-button">Show Details</button>
                     </div>
-                    <!-- Add Modal for Showing Likes -->
                     <div id="likes-modal-{{ quiz._id }}" class="likes-modal" style="display: none;">
                         <div class="modal-content">
                             <span class="close-button" onclick="closeLikesModal('{{ quiz._id }}')">&times;</span>
