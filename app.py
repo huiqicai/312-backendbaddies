@@ -4,6 +4,7 @@ from flask_pymongo import PyMongo
 from flask_bcrypt import Bcrypt
 from pymongo import MongoClient
 from bson import ObjectId
+from html import escape
 import hashlib
 
 app = Flask(__name__, template_folder='Frontend', static_folder='Frontend/static')
@@ -16,10 +17,6 @@ users_collection = db['users']
 quizzes_collection = db['quizzes']
 interactions_collection = db['interactions']
 
-
-
-def escapeHTML(line):
-    return line.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 def hash_password(password):
     return bcrypt.generate_password_hash(password).decode('utf-8')
@@ -67,9 +64,9 @@ def dashboard():
 
 @app.route("/register_user", methods=["POST"])
 def register_user():
-    username = escapeHTML(request.form.get("username"))
+    username = escape(request.form.get("username"))
     password = request.form.get("password")
-    email = escapeHTML(request.form.get("email"))
+    email = escape(request.form.get("email"))
 
     if users_collection.find_one({"username": username}):
         return jsonify({"success": False, "message": "Username already taken."}), 400
@@ -82,7 +79,7 @@ def register_user():
 
 @app.route("/login", methods=["POST"])
 def login():
-    email = escapeHTML(request.form.get("email"))
+    email = escape(request.form.get("email"))
     password = request.form.get("password")
     user = users_collection.find_one({"email": email})
 
@@ -118,10 +115,10 @@ def upload_quiz():
     if not username:
         return redirect("/?message=Please log in.")
 
-    title = escapeHTML(request.form.get("title"))
-    questions = [escapeHTML(q) for q in request.form.getlist("questions[]")]
-    answers = [escapeHTML(a) for a in request.form.getlist("answers[]")]
-    correct_answers = [escapeHTML(ca) for ca in request.form.getlist("correct_answers[]")]
+    title = escape(request.form.get("title"))
+    questions = [escape(q) for q in request.form.getlist("questions[]")]
+    answers = [escape(a) for a in request.form.getlist("answers[]")]
+    correct_answers = [escape(ca) for ca in request.form.getlist("correct_answers[]")]
 
     if len(questions) != len(answers) or len(questions) != len(correct_answers):
         return jsonify({"success": False, "message": "All fields must have the same number of entries."}), 400
@@ -148,7 +145,7 @@ def comment_quiz(quiz_id):
     if not username:
         return jsonify({"success": False, "message": "User not authenticated."}), 401
 
-    comment_text = escapeHTML(request.form.get("comment"))
+    comment_text = escape(request.form.get("comment"))
     quiz_object_id = ObjectId(quiz_id)
     comment = {"username": username, "text": comment_text}
     quizzes_collection.update_one({"_id": quiz_object_id}, {"$push": {"comments": comment}})
