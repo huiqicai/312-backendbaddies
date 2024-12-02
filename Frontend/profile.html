@@ -18,8 +18,8 @@
     <div class="profile-container">
         <img src="{{ user_pfp | e if user_pfp else '/static/default-pfp.jpg' }}" alt="Profile image" class="pfp">
         <form onsubmit="handleUploadPfp(event)">
-            <label for="file-upload">Choose a profile picture:</label>
-            <input type="file" name="file" id="file-upload" accept="image/*">
+            <label for="file-upload">Choose a profile picture (jpg only):</label>
+            <input type="file" name="file" id="file-upload" accept="image/jpg">
             <input type="submit" value="Upload">
         </form>
     </div>
