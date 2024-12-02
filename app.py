@@ -1,14 +1,19 @@
-from flask import Flask, render_template, request, redirect, make_response, send_file, jsonify
+from flask import Flask, render_template, request, redirect, make_response, send_file, jsonify, url_for, send_from_directory
 from flask_socketio import SocketIO, emit
 from flask_pymongo import PyMongo
 from flask_bcrypt import Bcrypt
 from pymongo import MongoClient
 from bson import ObjectId
-from html import escape
+from werkzeug.utils import secure_filename
 import hashlib
+import os
+import uuid
+from html import escape
 
 app = Flask(__name__, template_folder='Frontend', static_folder='Frontend/static')
+app.config['UPLOAD_FOLDER'] = 'Frontend/uploads'
 socketio = SocketIO(app, cors_allowed_origins="*", transports=['websocket'])
+
 bcrypt = Bcrypt(app)
 
 mongo_client = MongoClient('mongo')  
@@ -38,6 +43,66 @@ def validate_session():
     if not user:
         return None
     return user["username"]
+
+@app.route("/profile")
+def profile():
+    username = request.cookies.get("username")
+    if not username:
+        return redirect(url_for("home"))
+    user = users_collection.find_one({"username": username})
+    if not user:
+        return redirect(url_for("home"))
+    pfp = user.get("profile_picture", "/static/default-pfp.jpg")
+    response = make_response(render_template("profile.html", user_pfp=pfp))
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    return response
+
+
+def allowed_file(filename):
+    ALLOWED_EXTENSIONS = {"jpg"}
+    return "." in filename and filename.rsplit(".", 1)[1].lower() in ALLOWED_EXTENSIONS
+
+@app.route("/profile/upload", methods=["POST"])
+def upload_pfp():
+    if "file" not in request.files:
+        return jsonify({'status': 'error', 'message': 'No file selected'}), 400
+
+    file = request.files["file"]
+
+    # Check if the user selected a file
+    if file.filename == "":
+        return jsonify({'status': 'error', 'message': 'No file selected'}), 400
+
+    if file and allowed_file(file.filename):
+        file_extension = file.filename.rsplit('.', 1)[1].lower()
+        random_filename = f"{uuid.uuid4().hex}.{file_extension}"  # Generate a random filename
+        filepath = os.path.join(app.config["UPLOAD_FOLDER"], random_filename)
+        file.save(filepath)
+
+        # Update the user's profile picture in the database
+        username = request.cookies.get("username")
+        if username:
+            users_collection.update_one(
+                {"username": username},
+                {"$set": {"profile_picture": f"/uploads/{random_filename}"}}
+            )
+            return jsonify({'status': 'ok', 'message': 'Profile picture updated successfully!', 'profile_picture': f"/{filepath}"}), 200
+
+        return jsonify({'status': 'error', 'message': 'User not authenticated'}), 401
+
+    return jsonify({'status': 'error', 'message': 'Invalid file format'}), 400
+
+@app.route('/uploads/<filename>')
+def serve_uploaded_file(filename):
+    try:
+        file_path = os.path.join(os.getcwd(), "Frontend/uploads", filename)
+        print("Resolved file path:", file_path)  # Debugging output
+        response = send_file(file_path, mimetype="image/jpg")
+        response.headers["X-Content-Type-Options"] = "nosniff"
+        return response
+    except FileNotFoundError:
+        return jsonify({'status': 'error', 'message': 'File not found'}), 404
+
 
 @app.route("/static/cat.jpg")
 def serve_cat_image():
