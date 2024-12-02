@@ -1,0 +1,43 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>About</title>
+    <link rel="stylesheet" type="text/css" href="/static/navbar.css">
+    <link rel="stylesheet" type="text/css" href="/static/profile.css">
+    <script src="/static/profile.js" defer></script>
+</head>
+<body>
+
+{% include 'components/navbar.html' %}
+
+<h1>Profile page</h1>
+
+<main>
+    <div class="profile-container">
+        <img src="{{ user_pfp | e if user_pfp else '/static/default-pfp.jpg' }}" alt="Profile image" class="pfp">
+        <form onsubmit="handleUploadPfp(event)">
+            <label for="file-upload">Choose a profile picture (jpg only):</label>
+            <input type="file" name="file" id="file-upload" accept="image/jpg">
+            <input type="submit" value="Upload">
+        </form>
+    </div>
+    
+    <script>
+        document.querySelector('#file-upload').addEventListener('change', function(event) {
+            const file = event.target.files[0];
+            if (file) {
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    document.querySelector('.pfp').src = e.target.result;
+                };
+                reader.readAsDataURL(file);
+            }
+        });
+    </script>
+    
+</main>
+
+</body>
+</html>
