@@ -241,5 +241,6 @@ def quiz_details(quiz_id):
         # Handle any exceptions (e.g., invalid ObjectId format)
         return str(e), 400
 
+
 if __name__ == "__main__":
     socketio.run(app, debug=True, host="0.0.0.0", port=8080)
