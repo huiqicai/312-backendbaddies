@@ -1,94 +1,140 @@
-function addQuestion() { // Method to add multiple questions to each quiz.
-    const container = document.getElementById('questions-container');
-    const currentQuestionNumber = container.children.length + 1;
-    const question = document.createElement('div');
+let socket = null;
 
+function initWs() {
+    const socketProtocol = window.location.protocol === "https:" ? "wss" : "ws";
+    const socketUrl = `${socketProtocol}://${window.location.host}`;
 
-    const newQuestion = document.createElement('input');
-    newQuestion.required = true
-    newQuestion.type = 'text'; // New Questions for MC Quiz 
-    newQuestion.name = 'questions[]';  
-    newQuestion.placeholder = `Question ${currentQuestionNumber}`; // Temp to let user know to input questions here.
-    question.appendChild(newQuestion); // Add new question to the list. 
+    socket = io(socketUrl, {
+        transports: ['websocket'], 
+        upgrade: false, 
+    });
 
-    const newChoices = document.createElement('input');
-    newChoices.required = true
-    newChoices.type = 'text'; // New Questions for MC Quiz 
-    newChoices.name = 'answers[]';  
-    newChoices.placeholder = 'Choices (csv) *'; // Temp to let user know to input questions here.
-    question.appendChild(newChoices); // Add new question to the list.
+    socket.on('connect', () => {
+        console.log("WebSocket connection established");
+        joinQuizRooms(); 
+    });
 
-    const newCorrectAnswer = document.createElement('input');
-    newChoices.required = true
-    newCorrectAnswer.type = 'text'; // New Questions for MC Quiz 
-    newCorrectAnswer.name = 'correct_answers[]';  
-    newCorrectAnswer.placeholder = 'Correct Answer *'; // Temp to let user know to input questions here.
-    question.appendChild(newCorrectAnswer); // Add new question to the list. 
+    socket.on('new_comment', (data) => {
+        const commentsList = document.querySelector(`#quiz-${data.quiz_id} .comments-list`);
+        if (commentsList) {
+            const commentHtml = `<li><strong>${data.username}</strong>: ${data.text}</li>`;
+            commentsList.insertAdjacentHTML('beforeend', commentHtml);
+        }
+    });
 
-    container.appendChild(question);
+    socket.on('like_quiz', (data) => {
+        const likeCountElement = document.querySelector(`#like-count-${data.quiz_id}`);
+        if (likeCountElement) {
+            likeCountElement.textContent = data.likes_users.length;
+        }
+    });
 
+    socket.on('update_likes', (data) => {
+        const { quiz_id, likes_count, likes_users } = data;
+
+        const likeCountElement = document.querySelector(`#like-count-${quiz_id}`);
+        if (likeCountElement) {
+            likeCountElement.textContent = likes_count;
+        }
+
+        const likesList = document.getElementById(`likes-list-${quiz_id}`);
+        if (likesList) {
+            likesList.innerHTML = ""; 
+            likes_users.forEach((user) => {
+                const listItem = document.createElement("li");
+                listItem.textContent = user;
+                likesList.appendChild(listItem);
+            });
+        }
+    });
+
+    socket.on('disconnect', () => {
+        console.log("WebSocket connection closed");
+    });
+
+    socket.on('error', (error) => {
+        console.error("WebSocket error:", error);
+    });
 }
 
-function likeQuiz(quizId) { // Method that allows each user to like the post (As well as unlike it.)
-    $.ajax({
-        url: "/interact",
-        type: "POST",
-        data: {
-            quiz_id: quizId,
-            type: "like"
-        },
-        success: function(response) {
-            if (response.success) {  // Onclick 
-                let likeCountElement = $(`#like-count-${quizId}`);
+function joinQuizRooms() {
+    const quizItems = document.querySelectorAll('[data-quiz-id]');
+    quizItems.forEach((quizItem) => {
+        const quizId = quizItem.getAttribute('data-quiz-id');
+        socket.emit('joinRoom', { quizId }); 
+        console.log(`Joined WebSocket room for quiz ${quizId}`);
+    });
+}
 
-                let currentLikeCount = parseInt(likeCountElement.text());
+function likeQuiz(quizId) {
+    fetch('/interact', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `quiz_id=${quizId}&type=like`
+    }).catch(error => console.error('Error during like/unlike:', error));
+}
 
-                if (response.action === "liked") {
-                    likeCountElement.text(currentLikeCount + 1); // IF USER LIKES THE QUIZ I++ THE COUNT 
-                } else {
-                    likeCountElement.text(currentLikeCount - 1); // ELSE IF USER CLICKS I-- THE COUNT
-                }
-                
-                let likesList = $(`#likes-list-${quizId}`);
-                likesList.empty();
-                response.likes_users.forEach(function(user) {
-                    likesList.append(`<li>${$('<div/>').text(user).html()}</li>`); 
-                });
-            } else {
-                alert(response.message || "An error occurred when liking.");
-            }
-        },
-        error: function(xhr) {
-            let errorMessage = xhr.responseJSON ? xhr.responseJSON.message : "Error try again!";
+function submitComment(event, quizId) {
+    event.preventDefault();
+    const commentInput = document.getElementById(`comment-input-${quizId}`);
+    const commentText = commentInput.value.trim();
 
-            alert(errorMessage);
+    if (!commentText) {
+        alert('Comment cannot be empty.');
+        return;
+    }
+
+    fetch(`/comment_quiz/${quizId}`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
+        body: `comment=${encodeURIComponent(commentText)}`
+    }).then(response => {
+        if (response.ok) {
+            commentInput.value = '';
+        } else {
+            alert('Failed to submit comment.');
         }
     });
 }
 
-function toggleLikeDropdown(quizId) { // Method that has the dropdown to see likes.
-    const dropdown = $(`#like-dropdown-${quizId}`);
-
-    dropdown.toggle(); // Onclick dropdown to display the list. 
+function showLikes(quizId) {
+    const modal = document.getElementById(`likes-modal-${quizId}`);
+    if (!modal) {
+        console.error(`Modal with ID likes-modal-${quizId} not found.`);
+        return;
+    }
+    modal.style.display = "block"; 
 }
 
-function submitComment(event, quizId) { // NEDS WORK
-    event.preventDefault();
-
-    const commentText = $('<div/>').text($(event.target).find('input').val()).html();
-
-    $.post(`/comment_quiz/${quizId}`, { comment: commentText }, function(comments) {
-
-        const lastComment = comments[comments.length - 1];
-
-        const commentHtml = `<li>${$('<div/>').text(lastComment.username).html()}: ${$('<div/>').text(lastComment.text).html()}</li>`;
-        
-        $(`#quiz-${quizId} .comments-list`).append(commentHtml);
-        
-        $(event.target).find('input').val('');
-    });
+function closeLikesModal(quizId) {
+    const modal = document.getElementById(`likes-modal-${quizId}`);
+    if (!modal) {
+        console.error(`Modal with ID likes-modal-${quizId} not found.`);
+        return; 
+    }
+    modal.style.display = "none"; 
 }
 
-function showDetails(quizId){
-    window.location.href = `/quiz/${quizId}`;
+function addQuestion() {
+    const questionsContainer = document.getElementById("questions-container");
+    if (questionsContainer) {
+        const questionCount = questionsContainer.children.length + 1; 
+        const questionItem = document.createElement("div");
+        questionItem.className = "question-item";
+        questionItem.innerHTML = `
+            <input type="text" name="questions[]" placeholder="Question ${questionCount}" required class="input-field">
+            <input type="text" name="answers[]" placeholder="Choices (comma-separated)" required class="input-field">
+            <input type="text" name="correct_answers[]" placeholder="Correct Answer" required class="input-field">
+        `;
+        questionsContainer.appendChild(questionItem);
+    }
 }
+
+document.addEventListener('DOMContentLoaded', () => {
+    initWs(); 
+
+    const addQuestionButton = document.getElementById("add-question-button");
+    if (addQuestionButton) {
+        addQuestionButton.addEventListener("click", addQuestion); 
+    }
+});
