@@ -3,31 +3,32 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>{{ quiz['title'] }}</title>
-    <link rel="stylesheet" type="text/css" href="/static/navbar.css">
-    <link rel="stylesheet" type="text/css" href="/static/quizzes.css">
+    <title>{{ quiz.title | e }}</title>
+    <link rel="stylesheet" href="/static/navbar.css"> 
+    <link rel="stylesheet" href="/static/quizzes.css"> 
 </head>
 <body>
     {% include 'components/navbar.html' %}
+
     <div class="quizPage">
-        <h1>{{ quiz['title'] }}</h1>
-        <p>{{ quiz['description'] }}</p>
-        
+        <h1>{{ quiz.title | e }}</h1>
+
         <h2>Questions:</h2>
         <ul>
-            {% for question, answers in quiz['questions'].items() %}
-                <li>
-                    <strong>{{ question }}</strong>
-                    <ul>
-                        <li class="correct">{{ answers[0] }}</li>
-                        {% for wrong_answer in answers[1] %}
-                            <li class="wrong">{{ wrong_answer }}</li>
-                        {% endfor %}
-                    </ul>
-                </li>
+            {% for question, details in quiz.questions.items() %}
+            <li>
+                <p><strong>Question:</strong> {{ question | e }}</p>
+                <p><strong>Correct Answer:</strong> <span class="correct">{{ details.correct_answer | e }}</span></p>
+                <p><strong>Choices:</strong></p>
+                <ul>
+                    {% for choice in details.choices %}
+                    <li>{{ choice | e }}</li>
+                    {% endfor %}
+                </ul>
+            </li>
             {% endfor %}
         </ul>
-    
+
         <a href="/dashboard">Back to quizzes</a>
     </div>
 </body>

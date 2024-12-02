@@ -130,6 +130,10 @@ function addQuestion() {
     }
 }
 
+function showDetails(quizId){
+    window.location.href = `/quiz/${quizId}`;
+}
+
 document.addEventListener('DOMContentLoaded', () => {
     initWs(); 
 
