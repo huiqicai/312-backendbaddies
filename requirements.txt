@@ -1,5 +1,8 @@
+flask
+flask-pymongo
+flask-bcrypt
 pymongo
 bcrypt
-flask
-Flask-PyMongo
-flask-bcrypt
+flask-socketio
+eventlet
+python-socketio
