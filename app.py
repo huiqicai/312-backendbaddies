@@ -1,4 +1,5 @@
 from flask import Flask, render_template, request, redirect, make_response, send_file, jsonify, url_for, send_from_directory
+from flask_socketio import SocketIO, emit
 from flask_pymongo import PyMongo
 from flask_bcrypt import Bcrypt
 from pymongo import MongoClient
@@ -11,20 +12,20 @@ from html import escape
 
 app = Flask(__name__, template_folder='Frontend', static_folder='Frontend/static')
 app.config['UPLOAD_FOLDER'] = 'Frontend/uploads'
+socketio = SocketIO(app, cors_allowed_origins="*", transports=['websocket'])
 
 bcrypt = Bcrypt(app)
 
-mongo_client = MongoClient('mongo')  # init mongo
-
+mongo_client = MongoClient('mongo')  
 db = mongo_client['user_auth_db']
-
 users_collection = db['users']
-
-tokens_collection = db['tokens']
-
 quizzes_collection = db['quizzes']
-
 interactions_collection = db['interactions']
+
+
+
+def escapeHTML(line):
+    return line.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
 
 def hash_password(password):
     return bcrypt.generate_password_hash(password).decode('utf-8')
@@ -32,32 +33,20 @@ def hash_password(password):
 def check_password(stored_password, provided_password):
     return bcrypt.check_password_hash(stored_password, provided_password)
 
-def generate_auth_token(username):
-    token = os.urandom(24).hex()
-    hashed_token = hashlib.sha256(token.encode()).hexdigest()
-    tokens_collection.insert_one({
-        "username": username,
-        "token": hashed_token,
-    })
-    return token
+def verify_auth_token(token):
+    if not token:
+        return None
 
-@app.route("/register_page", methods=["GET"])
-def register():
-    response = make_response(render_template("register_page.html"))
-    response.headers["X-Content-Type-Options"] = "nosniff"
-    return response
+    hashed_token = hashlib.sha256(token.encode("utf-8")).hexdigest()
+    user = users_collection.find_one({"auth_token": hashed_token})
+    return user
 
-@app.route("/")
-def home():
-    response = make_response(render_template("login.html"))
-    response.headers["X-Content-Type-Options"] = "nosniff"
-    return response
-
-@app.route("/about")
-def about():
-    response = make_response(render_template("about.html"))
-    response.headers["X-Content-Type-Options"] = "nosniff"
-    return response
+def validate_session():
+    auth_token = request.cookies.get("auth_token")
+    user = verify_auth_token(auth_token)
+    if not user:
+        return None
+    return user["username"]
 
 @app.route("/profile")
 def profile():
@@ -125,27 +114,37 @@ def serve_cat_image():
     response.headers["X-Content-Type-Options"] = "nosniff"
     return response
 
+@app.route("/")
+def home():
+    return render_template("login.html")
+
+@app.route("/register_page", methods=["GET"])
+def register_page():
+    return render_template("register_page.html")
+
+@app.route("/dashboard")
+def dashboard():
+    username = validate_session()
+    if not username:
+        return redirect("/?message=Please log in.")
+
+    quizzes = list(quizzes_collection.find())  # Fetch all quizzes
+    return render_template("dashboard.html", username=username, quizzes=quizzes)
+
 @app.route("/register_user", methods=["POST"])
 def register_user():
     username = escape(request.form.get("username"))
     password = request.form.get("password")
     email = escape(request.form.get("email"))
 
-    if users_collection.find_one({"username": username}): 
-        return jsonify({"success": False, "message": "Username already taken, please use another."}), 400
+    if users_collection.find_one({"username": username}):
+        return jsonify({"success": False, "message": "Username already taken."}), 400
     if users_collection.find_one({"email": email}):
-        return jsonify({"success": False, "message": "Email already registered with an account!"}), 400
+        return jsonify({"success": False, "message": "Email already registered."}), 400
 
     hashed_pw = hash_password(password)
-    user = {"email": email, "username": username, "password": hashed_pw}
-    users_collection.insert_one(user)
-
-    response = make_response(redirect("/?message=Registered Successfully"))
-    
-    response.set_cookie("username", username)  
-    
-    response.headers["X-Content-Type-Options"] = "nosniff"
-    return response
+    users_collection.insert_one({"username": username, "email": email, "password": hashed_pw})
+    return redirect("/?message=Registered Successfully")
 
 @app.route("/login", methods=["POST"])
 def login():
@@ -154,120 +153,148 @@ def login():
     user = users_collection.find_one({"email": email})
 
     if not user or not check_password(user["password"], password):
-        return jsonify({"success": False, "message": "Invalid credentials, try again."}), 401
+        return jsonify({"success": False, "message": "Invalid credentials."}), 401
 
-    auth_token = generate_auth_token(user["username"])
+    raw_token = user["username"] + request.remote_addr
+    auth_token = hashlib.sha256(raw_token.encode()).hexdigest()
+    users_collection.update_one({"username": user["username"]}, {"$set": {"auth_token": auth_token}})
 
     response = make_response(redirect("/dashboard"))
-    
-    response.set_cookie("auth_token", auth_token, httponly=True, max_age=3600)
-    
-    response.set_cookie("username", user["username"])  # Set the username cookie. 
-    
-    response.headers["X-Content-Type-Options"] = "nosniff"
-    
+    response.set_cookie("username", user["username"], httponly=True, secure=True)
+    response.set_cookie("auth_token", raw_token, httponly=True, secure=True, max_age=3600)
     return response
 
-@app.route("/logout")
+@app.route("/logout", methods=["POST"])
 def logout():
+    username = request.cookies.get("username")
+    auth_token = request.cookies.get("auth_token")
+    user = verify_auth_token(auth_token)
+
+    if user:
+        users_collection.update_one({"username": username}, {"$unset": {"auth_token": ""}})
+
     response = make_response(redirect("/"))
-    response.delete_cookie("auth_token")
     response.delete_cookie("username")
-    response.headers["X-Content-Type-Options"] = "nosniff"
+    response.delete_cookie("auth_token")
     return response
 
+@app.route("/upload_quiz", methods=["POST"])
+def upload_quiz():
+    username = validate_session()
+    if not username:
+        return redirect("/?message=Please log in.")
 
-@app.route("/dashboard")
-def dashboard():
-    auth_token = request.cookies.get('auth_token')
-    token_data = tokens_collection.find_one({"token": auth_token}) if auth_token else None
-    is_not_logged_in = token_data is None
-    username = token_data['username'] if token_data else None
+    title = escapeHTML(request.form.get("title"))
+    questions = [escapeHTML(q) for q in request.form.getlist("questions[]")]
+    answers = [escapeHTML(a) for a in request.form.getlist("answers[]")]
+    correct_answers = [escapeHTML(ca) for ca in request.form.getlist("correct_answers[]")]
 
-    username = request.cookies.get("username")
-    quizzes = list(quizzes_collection.find())  # find every quiz that is created in our Db
-    message = request.args.get("message")
+    if len(questions) != len(answers) or len(questions) != len(correct_answers):
+        return jsonify({"success": False, "message": "All fields must have the same number of entries."}), 400
 
-    response = make_response(render_template("dashboard.html", username=username, quizzes=quizzes, message=message, is_not_logged_in=is_not_logged_in))
-    response.headers["X-Content-Type-Options"] = "nosniff"
-    return response
+    quiz = {
+        "title": title,
+        "questions": {
+            questions[i]: {
+                "correct_answer": correct_answers[i].strip(),
+                "choices": [choice.strip() for choice in answers[i].split(',')]
+            }
+            for i in range(len(questions))
+        },
+        "created_by": username,
+        "likes": 0,
+        "comments": []
+    }
+    quizzes_collection.insert_one(quiz)
+    return redirect("/dashboard")
 
-@app.route("/upload_quiz", methods=["POST"]) 
-def upload_quiz(): 
-    title = escape(request.form.get("title"))
-    questions = [escape(q) for q in request.form.getlist("questions[]")]
-    answers = [escape(a) for a in request.form.getlist("answers[]")]
-    answers = [ele.split(',') for ele in answers]
-    correct_answers = [escape(a) for a in request.form.getlist("correct_answers[]")]
-    
-    username = request.cookies.get("username")
+@app.route("/comment_quiz/<quiz_id>", methods=["POST"])
+def comment_quiz(quiz_id):
+    username = validate_session()
+    if not username:
+        return jsonify({"success": False, "message": "User not authenticated."}), 401
 
-    if username:
-        quiz = {
-            "title": title,
-            "questions": {
-                questions[i]: (correct_answers[i].strip(), [ans.strip() for ans in answers[i] if ans != correct_answers[i]])
-                for i in range(len(questions))
-            },
-            "created_by": username, 
-            "likes": 0,  
-            "comments": [] 
-        }
-        print(quiz)
-        quizzes_collection.insert_one(quiz)
-        return redirect("/dashboard")
+    comment_text = escapeHTML(request.form.get("comment"))
+    quiz_object_id = ObjectId(quiz_id)
+    comment = {"username": username, "text": comment_text}
+    quizzes_collection.update_one({"_id": quiz_object_id}, {"$push": {"comments": comment}})
 
-    return jsonify({"success": False, "message": "User not authenticated"}), 401
+    # Emit the comment globally
+    socketio.emit("new_comment", {"quiz_id": quiz_id, "username": username, "text": comment_text})
+    return jsonify({"success": True, "comment": comment})
 
 @app.route("/interact", methods=["POST"])
-def interact():  
-    username = request.cookies.get("username")
+def interact():
+    username = validate_session()
+    if not username:
+        return jsonify({"success": False, "message": "User not authenticated."}), 401
+
     quiz_id = request.form.get("quiz_id")
     interaction_type = request.form.get("type")
-
-    if username:
+    
+    try:
         quiz_object_id = ObjectId(quiz_id)
+    except Exception:
+        return jsonify({"success": False, "message": "Invalid quiz ID."}), 400
 
-        if interaction_type == "like":
-            existing_like = interactions_collection.find_one({
-                "quiz_id": quiz_object_id,
-                "username": username,
-                "type": "like"
-            })
-
+    if interaction_type == "like":
+        try:
+            existing_like = interactions_collection.find_one(
+                {"quiz_id": quiz_object_id, "username": username, "type": "like"}
+            )
+            action = ""
             if existing_like:
-                interactions_collection.delete_one({
-                    "quiz_id": quiz_object_id,
-                    "username": username,
-                    "type": "like"
-                })
-                quizzes_collection.update_one({"_id": quiz_object_id}, {"$inc": {"likes": -1}})
+                interactions_collection.delete_one(
+                    {"quiz_id": quiz_object_id, "username": username, "type": "like"}
+                )
+                quizzes_collection.update_one(
+                    {"_id": quiz_object_id},
+                    {"$inc": {"likes": -1}, "$pull": {"likes_users": username}}
+                )
                 action = "unliked"
             else:
-                interactions_collection.insert_one({
-                    "quiz_id": quiz_object_id,
-                    "username": username,
-                    "type": "like"
-                })
-                quizzes_collection.update_one({"_id": quiz_object_id}, {"$inc": {"likes": 1}})
+                interactions_collection.insert_one(
+                    {"quiz_id": quiz_object_id, "username": username, "type": "like"}
+                )
+                quizzes_collection.update_one(
+                    {"_id": quiz_object_id},
+                    {"$inc": {"likes": 1}, "$addToSet": {"likes_users": username}}
+                )
                 action = "liked"
 
-            # get updated list of different users who liked the quiz
-            likes_users = [
-                interaction["username"] for interaction in interactions_collection.find({
-                    "quiz_id": quiz_object_id,
-                    "type": "like"
-                })
-            ]
+            updated_quiz = quizzes_collection.find_one(
+                {"_id": quiz_object_id}, {"likes": 1, "likes_users": 1}
+            )
+            if not updated_quiz:
+                return jsonify({"success": False, "message": "Quiz not found."}), 404
 
-            return jsonify({"success": True, "action": action, "likes_users": likes_users})
+            likes_count = updated_quiz.get("likes", 0)
+            likes_users = updated_quiz.get("likes_users", [])
 
-    return jsonify({"success": False, "message": "User not authenticated"}), 401
+            socketio.emit("like_quiz", {
+                "quiz_id": quiz_id,
+                "likes_count": likes_count,
+                "likes_users": likes_users,
+                "action": action,
+            })
 
-@app.route('/static/dashboard.js')
-def serve_dashboard_js():
-    return send_file('Frontend/static/dashboard.js', mimetype='application/javascript')
+            return jsonify({"success": True, "action": action, "likes_count": likes_count, "likes_users": likes_users})
 
+        except Exception as e:
+            print(f"Error processing like/unlike: {e}")
+            return jsonify({"success": False, "message": "Failed to process like/unlike."}), 500
+
+    return jsonify({"success": False, "message": "Invalid interaction type."}), 400
+
+@app.route("/likes/<quiz_id>", methods=["GET"])
+def get_likes(quiz_id):
+    quiz_object_id = ObjectId(quiz_id)
+    quiz = quizzes_collection.find_one({"_id": quiz_object_id}, {"likes_users": 1})
+    if not quiz:
+        return jsonify({"success": False, "message": "Quiz not found"}), 404
+
+    likes_users = quiz.get("likes_users", [])
+    return jsonify({"success": True, "likes_users": likes_users})
 @app.route("/quiz/<quiz_id>")
 def quiz_details(quiz_id):
     #testing
@@ -281,4 +308,4 @@ def quiz_details(quiz_id):
         return str(e), 400
 
 if __name__ == "__main__":
-    app.run(debug=True, host='0.0.0.0', port=8080)
+    socketio.run(app, debug=True, host="0.0.0.0", port=8080)

@@ -7,64 +7,76 @@
     <link rel="stylesheet" type="text/css" href="/static/navbar.css">
     <link rel="stylesheet" type="text/css" href="/static/dashboard.css">
     <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
-    <script src="/static/dashboard.js" defer></script>
+    <script src="https://cdn.socket.io/4.0.0/socket.io.min.js"></script>
+    <script src="/static/dashboard.js" defer></script> 
 </head>
 <body>
+    {% include 'components/navbar.html' %} 
 
-{% include 'components/navbar.html' %} <!-- Import navbar for dashboard as well.-->
+    <div class="container">
+        <h1>Welcome, {{ username | e }}!</h1> 
 
-<h1>Welcome, {{ username | e }}!</h1> <!-- Escaped username -->
+        <section class="quiz-upload-section">
+            <h2>Upload a Trivia Quiz</h2>
+            <form action="/upload_quiz" method="POST" id="upload-quiz-form">
+                <input type="text" name="title" placeholder="Quiz Title" required class="input-field">
+                <div id="questions-container">
+                    <div class="question-item">
+                        <input type="text" name="questions[]" placeholder="Question 1" required class="input-field">
+                        <input type="text" name="answers[]" placeholder="Choices (comma-separated)" required class="input-field">
+                        <input type="text" name="correct_answers[]" placeholder="Correct Answer" required class="input-field">
+                    </div>
+                </div>
+                <button type="button" id="add-question-button" class="button">Add Another Question</button>
+                <button type="submit" class="button">Upload Quiz</button>
+            </form>
+        </section>
 
-<h1>Upload Trivia Quiz</h1>
-<form action="/upload_quiz" method="POST">
-    <input type="text" name="title" placeholder="Quiz Title" required>
-    <div id="questions-container">
-        <div>
-            <input type="text" name="questions[]" placeholder="Question 1" required> <!-- Users have to fill this out in order to submit. -->
-            <input type="text" name="answers[]" placeholder="Choices (csv) *" required>
-            <input type="text" name="correct_answers[]" placeholder="Correct Answer *" required>
-        </div>
-    </div>
-    
-    <button type="button" onclick="addQuestion()">Add Another Question</button>
-
-    <button type="submit">Upload Quiz</button> <!-- Button to allow user to add quiz to the website. -->
-</form>
-
-<h2>Available Quizzes</h2>
-<ul id="quizzes-list">
-    {% for quiz in quizzes %}
-    <li id="quiz-{{ quiz._id }}">
-        <h3>{{ quiz.title | e }}</h3>
-        <p>Created by: {{ quiz.created_by | e }}</p> <!-- Display the creator's username (Author of Quiz) -->
-        
-        <p>Likes: <span class="likes-count" id="like-count-{{ quiz._id }}">{{ quiz.likes }}</span></p>
-        
-        <button onclick="likeQuiz('{{ quiz._id }}')">Like/Unlike</button>
-        
-        <button onclick="toggleLikeDropdown('{{ quiz._id }}')">Show Likes</button>
-        
-        <button onclick="showDetails('{{ quiz._id }}')">Show Details</button>
-        
-        <div id="like-dropdown-{{ quiz._id }}" class="like-dropdown" style="display: none;">
-            
-            <ul id="likes-list-{{ quiz._id }}"></ul>
-        </div>
-        <div class="comments-section">
-            <h4>Comments:</h4>
-            <ul class="comments-list">
-                {% for comment in quiz.comments %}
-                <li>{{ comment.username | e }}: {{ comment.text | e }}</li> <!-- Escape both the username and comment -->
+        <section class="available-quizzes">
+            <h2>Available Quizzes</h2>
+            <ul id="quizzes-list" class="quiz-list">
+                {% for quiz in quizzes %}
+                <li class="quiz-item" id="quiz-{{ quiz._id }}" data-quiz-id="{{ quiz._id }}">
+                    <h3 class="quiz-title">{{ quiz.title | e }}</h3>
+                    <p class="quiz-creator">Created by: <span>{{ quiz.created_by | e }}</span></p>
+                    <div class="likes-section">
+                        <p>Likes: <span class="likes-count" id="like-count-{{ quiz._id }}">{{ quiz.likes }}</span></p>
+                        <button onclick="likeQuiz('{{ quiz._id }}')" class="button like-button">Like/Unlike</button>
+                        <button onclick="showLikes('{{ quiz._id }}')" class="button show-likes-button">Show Likes</button>
+                        <button onclick="window.location.href='/quiz/{{ quiz._id }}'" class="button show-details-button">Show Details</button>
+                    </div>
+                    <div id="likes-modal-{{ quiz._id }}" class="likes-modal" style="display: none;">
+                        <div class="modal-content">
+                            <span class="close-button" onclick="closeLikesModal('{{ quiz._id }}')">&times;</span>
+                            <h4>Liked by:</h4>
+                            <ul id="likes-list-{{ quiz._id }}">
+                                {% if quiz.likes_users %}
+                                {% for user in quiz.likes_users %}
+                                <li>{{ user }}</li>
+                                {% endfor %}
+                                {% else %}
+                                <li>No likes yet</li>
+                                {% endif %}
+                            </ul>
+                        </div>
+                    </div>
+                    
+                    <div class="comments-section">
+                        <h4>Comments:</h4>
+                        <ul class="comments-list" id="comments-list-{{ quiz._id }}">
+                            {% for comment in quiz.comments %}
+                            <li><strong>{{ comment.username | e }}</strong>: {{ comment.text | e }}</li>
+                            {% endfor %}
+                        </ul>
+                        <form class="comment-form" onsubmit="submitComment(event, '{{ quiz._id }}')">
+                            <input type="text" class="comment-input input-field" id="comment-input-{{ quiz._id }}" placeholder="Add a comment" required>
+                            <button type="submit" class="button">Submit</button>
+                        </form>
+                    </div>
+                </li>
                 {% endfor %}
             </ul>
-            <form onsubmit="submitComment(event, '{{ quiz._id }}')">
-                <input type="text" placeholder="Add a comment" required>
-                <button type="submit">Submit</button>
-            </form>
-        </div>
-    </li>
-    {% endfor %}
-</ul>
-
+        </section>
+    </div>
 </body>
 </html>
