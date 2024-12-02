@@ -4,4 +4,4 @@ A web app project by **Backend Baddies**.
 
 ## Link to Our Website
 
-[Big Brain Trivia](https://bigbraintrivia.tech/)
+https://bigbraintrivia.tech/
