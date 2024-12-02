@@ -67,9 +67,9 @@ def dashboard():
 
 @app.route("/register_user", methods=["POST"])
 def register_user():
-    username = escape(request.form.get("username"))
+    username = escapeHTML(request.form.get("username"))
     password = request.form.get("password")
-    email = escape(request.form.get("email"))
+    email = escapeHTML(request.form.get("email"))
 
     if users_collection.find_one({"username": username}):
         return jsonify({"success": False, "message": "Username already taken."}), 400
@@ -82,7 +82,7 @@ def register_user():
 
 @app.route("/login", methods=["POST"])
 def login():
-    email = escape(request.form.get("email"))
+    email = escapeHTML(request.form.get("email"))
     password = request.form.get("password")
     user = users_collection.find_one({"email": email})
 
