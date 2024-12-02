@@ -1,15 +1,32 @@
 function addQuestion() { // Method to add multiple questions to each quiz.
     const container = document.getElementById('questions-container');
+    const currentQuestionNumber = container.children.length + 1;
+    const question = document.createElement('div');
+
 
     const newQuestion = document.createElement('input');
-
+    newQuestion.required = true
     newQuestion.type = 'text'; // New Questions for MC Quiz 
-
     newQuestion.name = 'questions[]';  
+    newQuestion.placeholder = `Question ${currentQuestionNumber}`; // Temp to let user know to input questions here.
+    question.appendChild(newQuestion); // Add new question to the list. 
 
-    newQuestion.placeholder = 'Question'; // Temp to let user know to input questions here.
+    const newChoices = document.createElement('input');
+    newChoices.required = true
+    newChoices.type = 'text'; // New Questions for MC Quiz 
+    newChoices.name = 'answers[]';  
+    newChoices.placeholder = 'Choices (csv) *'; // Temp to let user know to input questions here.
+    question.appendChild(newChoices); // Add new question to the list.
 
-    container.appendChild(newQuestion); // Add new question to the list. 
+    const newCorrectAnswer = document.createElement('input');
+    newChoices.required = true
+    newCorrectAnswer.type = 'text'; // New Questions for MC Quiz 
+    newCorrectAnswer.name = 'correct_answers[]';  
+    newCorrectAnswer.placeholder = 'Correct Answer *'; // Temp to let user know to input questions here.
+    question.appendChild(newCorrectAnswer); // Add new question to the list. 
+
+    container.appendChild(question);
+
 }
 
 function likeQuiz(quizId) { // Method that allows each user to like the post (As well as unlike it.)

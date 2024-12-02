@@ -5,6 +5,7 @@ from pymongo import MongoClient
 from bson import ObjectId
 import hashlib
 import os
+from html import escape
 
 app = Flask(__name__, template_folder='Frontend', static_folder='Frontend/static')
 
@@ -37,9 +38,6 @@ def generate_auth_token(username):
     })
     return token
 
-def escapeHTML(line):
-    return line.replace("&", "&amp;").replace("<", "&lt;").replace(">", "&gt;")
-
 @app.route("/register_page", methods=["GET"])
 def register():
     response = make_response(render_template("register_page.html"))
@@ -66,9 +64,9 @@ def serve_cat_image():
 
 @app.route("/register_user", methods=["POST"])
 def register_user():
-    username = escapeHTML(request.form.get("username"))
+    username = escape(request.form.get("username"))
     password = request.form.get("password")
-    email = escapeHTML(request.form.get("email"))
+    email = escape(request.form.get("email"))
 
     if users_collection.find_one({"username": username}): 
         return jsonify({"success": False, "message": "Username already taken, please use another."}), 400
@@ -88,7 +86,7 @@ def register_user():
 
 @app.route("/login", methods=["POST"])
 def login():
-    email = escapeHTML(request.form.get("email"))
+    email = escape(request.form.get("email"))
     password = request.form.get("password")
     user = users_collection.find_one({"email": email})
 
@@ -107,23 +105,37 @@ def login():
     
     return response
 
+@app.route("/logout")
+def logout():
+    response = make_response(redirect("/"))
+    response.delete_cookie("auth_token")
+    response.delete_cookie("username")
+    response.headers["X-Content-Type-Options"] = "nosniff"
+    return response
+
+
 @app.route("/dashboard")
 def dashboard():
+    auth_token = request.cookies.get('auth_token')
+    token_data = tokens_collection.find_one({"token": auth_token}) if auth_token else None
+    is_not_logged_in = token_data is None
+    username = token_data['username'] if token_data else None
+
     username = request.cookies.get("username")
     quizzes = list(quizzes_collection.find())  # find every quiz that is created in our Db
     message = request.args.get("message")
 
-    response = make_response(render_template("dashboard.html", username=username, quizzes=quizzes, message=message))
+    response = make_response(render_template("dashboard.html", username=username, quizzes=quizzes, message=message, is_not_logged_in=is_not_logged_in))
     response.headers["X-Content-Type-Options"] = "nosniff"
     return response
 
 @app.route("/upload_quiz", methods=["POST"]) 
 def upload_quiz(): 
-    title = escapeHTML(request.form.get("title"))
-    questions = [escapeHTML(q) for q in request.form.getlist("questions[]")]
-    answers = [escapeHTML(a) for a in request.form.getlist("answers[]")]
+    title = escape(request.form.get("title"))
+    questions = [escape(q) for q in request.form.getlist("questions[]")]
+    answers = [escape(a) for a in request.form.getlist("answers[]")]
     answers = [ele.split(',') for ele in answers]
-    correct_answers = [escapeHTML(a) for a in request.form.getlist("correct_answers[]")]
+    correct_answers = [escape(a) for a in request.form.getlist("correct_answers[]")]
     
     username = request.cookies.get("username")
 
