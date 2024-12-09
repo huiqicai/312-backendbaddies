@@ -1,14 +1,10 @@
-version: "3.8"
+version: '3'
 services:
+  mongo:
+    image: mongo:4.2.5
   app:
     build: .
+    environment:
+      WAIT_HOSTS: mongo:59824
     ports:
-      - "8080:8080"
-    depends_on:
-      - mongo
-  mongo:
-    image: mongo:latest
-    ports:
-      - "27017:27017"
-    volumes:
-      - ./mongo-data:/data/db
+      - '8080:8080'

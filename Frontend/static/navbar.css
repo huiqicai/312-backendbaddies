@@ -1,10 +1,35 @@
+body {
+    margin: 0;
+    font-family: Arial, sans-serif;
+    transition: background-color 0.3s, color 0.3s;
+}
+
+body.light-mode {
+    background-color: #ffffff;
+    color: #333;
+}
+
+body.dark-mode {
+    background-color: #121212;
+    color: #e0e0e0;
+}
 
 .navbar {
     display: flex;
-    justify-content: center;
-    background-color: #ffffff;
+    justify-content: space-between;
+    align-items: center;
+    background-color: var(--navbar-bg);
+    padding: 15px 20px;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
-    padding: 15px 0;
+    position: relative;
+    transition: background-color 0.3s ease;
+}
+
+.navbar-center {
+    position: absolute;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
 }
 
 .navbar ul {
@@ -22,11 +47,11 @@
 .navbar a {
     font-family: 'Arial', 'Trebuchet MS', serif;
     font-weight: 500;
-    color: #333;
+    color: var(--link-color);
     text-decoration: none;
     padding: 10px 25px;
     display: block;
-    background-color: #ffffff;
+    background-color: var(--link-bg);
     border-radius: 8px;
     transition: background-color 0.5s ease, color 0.5s ease, transform 0.5s ease;
     letter-spacing: 0.5px;
@@ -37,4 +62,31 @@
     background-color: #007bff;
     color: white;
     transform: translateY(-4px);
+}
+
+.theme-toggle {
+    background: none;
+    border: none;
+    font-size: 1.5em;
+    color: var(--toggle-color);
+    cursor: pointer;
+    transition: color 0.3s;
+}
+
+.theme-toggle:focus {
+    outline: none;
+}
+
+body.light-mode {
+    --navbar-bg: #ffffff;
+    --link-bg: #ffffff;
+    --link-color: #333;
+    --toggle-color: #333;
+}
+
+body.dark-mode {
+    --navbar-bg: #1f1f1f;
+    --link-bg: #333;
+    --link-color: #e0e0e0;
+    --toggle-color: #e0e0e0;
 }
