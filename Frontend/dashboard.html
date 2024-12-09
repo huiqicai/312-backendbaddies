@@ -11,6 +11,8 @@
     <script src="/static/dashboard.js" defer></script> 
 </head>
 <body>
+    <body data-user-id="{{ username | e }}">
+
     {% include 'components/navbar.html' %} 
 
     <div class="container">
@@ -30,6 +32,12 @@
                 <button type="button" id="add-question-button" class="button">Add Another Question</button>
                 <button type="submit" class="button">Upload Quiz</button>
             </form>
+        </section>
+
+        <section class="user-activity">
+            <h2>Active Users</h2>
+            <ul id="active-users-list" class="active-users-list">
+            </ul>
         </section>
 
         <section class="available-quizzes">
