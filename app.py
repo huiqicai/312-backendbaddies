@@ -9,6 +9,7 @@ import hashlib
 import os
 import uuid
 from html import escape
+import time
 
 app = Flask(__name__, template_folder='Frontend', static_folder='Frontend/static')
 app.config['UPLOAD_FOLDER'] = 'Frontend/uploads'
@@ -22,6 +23,41 @@ users_collection = db['users']
 quizzes_collection = db['quizzes']
 interactions_collection = db['interactions']
 
+ip_request_count = {}
+blocked_ip = {}
+
+def check_blocked_ip(ip):
+    if ip in blocked_ip:
+        if time.time() - blocked_ip[ip] >= 30:
+            del blocked_ip[ip]
+            return False
+        return True
+    return False
+
+def check_rate_limit(ip):
+    current_time = time.time()
+    if ip not in ip_request_count:
+        ip_request_count[ip] = []
+    
+    checked_requests = []
+    for timestamp in ip_request_count[ip]:
+        if (current_time - timestamp) < 10:
+            checked_requests.append(timestamp)
+    ip_request_count[ip] = checked_requests
+    ip_request_count[ip].append(current_time)
+
+    if len(ip_request_count[ip]) > 50:
+        blocked_ip[ip] = current_time
+        return False
+    return True
+
+@app.before_request
+def check_dos_protection():
+    ip = request.remote_addr
+    if check_blocked_ip(ip):
+        return "Too Many Requests", 429
+    if not check_rate_limit(ip):
+        return "Too Many Requests", 429
 
 def hash_password(password):
     return bcrypt.generate_password_hash(password).decode('utf-8')
