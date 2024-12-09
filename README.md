@@ -24,3 +24,6 @@ TESTING PROCEDURE (Light Dark Mode Feature) -
 7. After toggling the theme navigate to the dashboard page with a registered account.
 8. Ensure that the selected theme stays active. 
 9. Refresh the browser and verify that the selected theme is still active.
+
+
+Part 3 LO1: Poll at /dashboard. Must be logged in.
