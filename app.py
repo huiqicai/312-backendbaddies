@@ -54,6 +54,9 @@ def check_rate_limit(ip):
 @app.before_request
 def check_dos_protection():
     ip = request.headers.get('X-Forwarded-For', request.remote_addr)
+    if ',' in ip:
+        ip = ip.split(',')[0].strip()
+    print(f"Request from IP: {ip}")
     if check_blocked_ip(ip):
         return "Too Many Requests", 429
     if not check_rate_limit(ip):
