@@ -6,12 +6,6 @@ from pymongo import MongoClient
 from bson import ObjectId
 from werkzeug.utils import secure_filename
 import hashlib
-import time
-import threading
-import os
-import uuid
-from html import escape
-import time
 
 app = Flask(__name__, template_folder='Frontend', static_folder='Frontend/static')
 app.config['UPLOAD_FOLDER'] = 'Frontend/uploads'
@@ -24,48 +18,7 @@ db = mongo_client['user_auth_db']
 users_collection = db['users']
 quizzes_collection = db['quizzes']
 interactions_collection = db['interactions']
-active_users = {}
-user_lock = threading.Lock()
 
-
-ip_request_count = {}
-blocked_ip = {}
-
-def check_blocked_ip(ip):
-    if ip in blocked_ip:
-        if time.time() - blocked_ip[ip] >= 30:
-            del blocked_ip[ip]
-            return False
-        return True
-    return False
-
-def check_rate_limit(ip):
-    current_time = time.time()
-    if ip not in ip_request_count:
-        ip_request_count[ip] = []
-    
-    checked_requests = []
-    for timestamp in ip_request_count[ip]:
-        if (current_time - timestamp) < 10:
-            checked_requests.append(timestamp)
-    ip_request_count[ip] = checked_requests
-    ip_request_count[ip].append(current_time)
-
-    if len(ip_request_count[ip]) > 50:
-        blocked_ip[ip] = current_time
-        return False
-    return True
-
-@app.before_request
-def check_dos_protection():
-    ip = request.headers.get('X-Forwarded-For', request.remote_addr)
-    if ',' in ip:
-        ip = ip.split(',')[0].strip()
-    print(f"Request from IP: {ip}")
-    if check_blocked_ip(ip):
-        return "Too Many Requests", 429
-    if not check_rate_limit(ip):
-        return "Too Many Requests", 429
 
 def hash_password(password):
     return bcrypt.generate_password_hash(password).decode('utf-8')
@@ -347,85 +300,6 @@ def quiz_details(quiz_id):
         # Handle any exceptions (e.g., invalid ObjectId format)
         return str(e), 400
 
-
-@app.route("/active_users", methods=["GET"])
-def get_active_users():
-    active_users = list(users_collection.find({}, {"_id": 1, "active_time": 1}))
-    formatted_users = {str(user["_id"]): user["active_time"] for user in active_users}
-    return jsonify({"success": True, "active_users": formatted_users})
-
-@app.route("/track_user_activity", methods=["POST"])
-def track_user_activity():
-    user_id = request.form.get("user_id")
-    if not user_id:
-        return jsonify({"success": False, "message": "Missing user_id"}), 400
-
-    with user_lock:
-        users_collection.update_one(
-            {"_id": user_id},
-            {"$inc": {"active_time": 1}},
-            upsert=True  
-        )
-
-    active_users = list(users_collection.find({}, {"_id": 1, "active_time": 1}))
-    formatted_users = {str(user["_id"]): user["active_time"] for user in active_users}
-
-    socketio.emit('update_times', formatted_users)
-    return jsonify({"success": True, "active_users": formatted_users})
-
-def update_user_times():
-    while True:
-        with user_lock:
-            users_collection.update_many({}, {"$inc": {"active_time": 1}})
-
-            active_users = list(users_collection.find({}, {"_id": 1, "active_time": 1}))
-            formatted_users = {str(user["_id"]): user["active_time"] for user in active_users}
-
-        print(f"Broadcasting active users: {formatted_users}")
-        socketio.emit('update_times', formatted_users, broadcast=False)  
-        time.sleep(1)
-
-
-threading.Thread(target=update_user_times, daemon=True).start()
-
-@socketio.on('connect')
-def handle_connect():
-    user_id = request.args.get('user_id', 'anonymous')
-    if not user_id:
-        return
-
-    with user_lock:
-        users_collection.update_one(
-            {"_id": user_id},
-            {"$setOnInsert": {"active_time": 0}}, 
-            upsert=True
-        )
-    print(f"User {user_id} connected")
-
-    active_users = list(users_collection.find({}, {"_id": 1, "active_time": 1}))
-    formatted_users = {str(user["_id"]): user["active_time"] for user in active_users}
-    emit('update_times', formatted_users, broadcast=True)
-
-
-@socketio.on('disconnect')
-def handle_disconnect():
-    user_id = request.args.get('user_id', 'anonymous')
-    if not user_id:
-        return
-
-    print(f"User {user_id} disconnected")
-
-    active_users = list(users_collection.find({}, {"_id": 1, "active_time": 1}))
-    formatted_users = {str(user["_id"]): user["active_time"] for user in active_users}
-    emit('update_times', formatted_users, broadcast=True)
-
-
-@socketio.on('reset_time')
-def reset_time(data):
-    user_id = data.get('user_id')
-    if user_id:
-        with user_lock:
-            active_users[user_id] = 0
 
 if __name__ == "__main__":
     socketio.run(app, debug=True, host="0.0.0.0", port=8080)
