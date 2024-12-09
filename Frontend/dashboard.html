@@ -16,6 +16,40 @@
     <div class="container">
         <h1>Welcome, {{ username | e }}!</h1> 
 
+        <section class="daily-poll-section">
+            <h2>Daily Poll</h2>
+            {% if poll_results %}
+                <p>You have already voted in today's poll. Come back in: <span id="timer"></span></p>
+                <p><strong>Results:</strong></p>
+                <p>Total Votes: {{ poll_results.values()|sum }}</p>
+
+                <ul id="poll-results">
+                    {% for choice in daily_poll.choices %}
+                        <li {% if choice == correct_answer %} style="color: green; font-weight: bold;" {% endif %}>
+                            {{ choice }}
+                        </li>
+                    {% endfor %}
+                </ul>
+            {% else %}
+                <p>{{ daily_poll.question }}</p>
+                <p>Time left to vote: <span id="timer"></span></p>
+                <form id="daily-poll-form">
+                    <input type="hidden" name="poll_id" value="{{ daily_poll._id }}">
+                    <div>
+                        {% for choice in daily_poll.choices %}
+                            <label>
+                                <input type="radio" name="answer" value="{{ loop.index0 | chr }}" required>
+                                {{ choice }}
+                            </label>
+                        {% endfor %}
+                    </div>
+                    <button type="submit" class="button">Submit</button>
+                </form>
+            {% endif %}
+        </section>
+        
+        
+        
         <section class="quiz-upload-section">
             <h2>Upload a Trivia Quiz</h2>
             <form action="/upload_quiz" method="POST" id="upload-quiz-form">

@@ -10,18 +10,25 @@ import os
 import uuid
 from html import escape
 import time
+from random import choice
+from datetime import datetime, timedelta
+import threading
+import pytz
+
 
 app = Flask(__name__, template_folder='Frontend', static_folder='Frontend/static')
 app.config['UPLOAD_FOLDER'] = 'Frontend/uploads'
-socketio = SocketIO(app, cors_allowed_origins="*", transports=['websocket'])
+socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading", transports=['websocket'])
 
 bcrypt = Bcrypt(app)
 
 mongo_client = MongoClient('mongo')  
+
 db = mongo_client['user_auth_db']
 users_collection = db['users']
 quizzes_collection = db['quizzes']
 interactions_collection = db['interactions']
+polls_collection = db['polls']
 
 ip_request_count = {}
 blocked_ip = {}
@@ -157,14 +164,93 @@ def home():
 def register_page():
     return render_template("register_page.html")
 
+@app.template_filter('chr')
+def chr_filter(value):
+    try:
+        return chr(value)
+    except (ValueError, TypeError):
+        return ''
+
+def broadcast_timer():
+    ny_tz = pytz.timezone('America/New_York')
+
+    while True:
+        now = datetime.now(ny_tz)
+        today = now.date()
+        reset_time = ny_tz.localize(datetime.combine(today + timedelta(days=1), datetime.min.time()))
+        time_left = int((reset_time - now).total_seconds())
+        socketio.emit("update_timer", {"time_left": time_left}, to=None)
+        
+        socketio.sleep(1)
+
 @app.route("/dashboard")
 def dashboard():
     username = validate_session()
     if not username:
         return redirect("/?message=Please log in.")
 
-    quizzes = list(quizzes_collection.find())  # Fetch all quizzes
-    return render_template("dashboard.html", username=username, quizzes=quizzes)
+    quizzes = list(quizzes_collection.find())
+
+    today = datetime.utcnow().date()
+    today_datetime = datetime.combine(today, datetime.min.time())
+    daily_poll = polls_collection.find_one({"date": today_datetime})
+
+    correct_answer = None
+
+    if not quizzes:
+        default_quiz = {
+            "title": "Cat Trivia",
+            "questions": {
+                "What is the most popular cat breed in the world?": {
+                    "correct_answer": "Siamese",
+                    "choices": ["Persian", "Siamese", "Maine Coon", "Bengal"]
+                }
+            },
+            "created_by": "System",
+            "likes": 0,
+            "comments": []
+        }
+        quizzes_collection.insert_one(default_quiz)
+        quizzes = [default_quiz] 
+
+    if not daily_poll:
+        random_quiz = choice(quizzes)
+        question_text = choice(list(random_quiz["questions"].keys()))
+        choices = random_quiz["questions"][question_text]["choices"]
+
+        daily_poll = {
+            "question": question_text,
+            "choices": choices,
+            "quiz_id": random_quiz["_id"],
+            "results": {chr(97 + i): 0 for i in range(len(choices)) if choices[i].strip()},
+            "date": today_datetime
+        }
+        polls_collection.insert_one(daily_poll)
+
+    if daily_poll:
+        quiz = quizzes_collection.find_one({"_id": daily_poll["quiz_id"]})
+        if quiz and daily_poll["question"] in quiz["questions"]:
+            correct_answer = quiz["questions"][daily_poll["question"]]["correct_answer"]
+
+    user_vote = None
+    if daily_poll:
+        user_vote = interactions_collection.find_one({
+            "poll_id": daily_poll["_id"],
+            "username": username,
+            "type": "vote"
+        })
+
+    return render_template(
+        "dashboard.html",
+        username=username,
+        quizzes=quizzes,
+        daily_poll=daily_poll,
+        poll_results=daily_poll["results"] if user_vote else None,
+        correct_answer=correct_answer,
+        user_vote=user_vote
+    )
+
+
 
 @app.route("/register_user", methods=["POST"])
 def register_user():
@@ -330,6 +416,7 @@ def get_likes(quiz_id):
 
     likes_users = quiz.get("likes_users", [])
     return jsonify({"success": True, "likes_users": likes_users})
+
 @app.route("/quiz/<quiz_id>")
 def quiz_details(quiz_id):
     #testing
@@ -342,6 +429,61 @@ def quiz_details(quiz_id):
         # Handle any exceptions (e.g., invalid ObjectId format)
         return str(e), 400
 
+@app.route("/submit_poll", methods=["POST"])
+def submit_poll():
+    username = validate_session()
+    if not username:
+        return jsonify({"success": False, "message": "User not authenticated."}), 401
+
+    poll_id = request.form.get("poll_id")
+    selected_answer = request.form.get("answer")
+
+    if not poll_id or not selected_answer:
+        return jsonify({"success": False, "message": "Invalid request."}), 400
+
+    try:
+        poll_object_id = ObjectId(poll_id)
+    except Exception:
+        return jsonify({"success": False, "message": "Invalid poll ID."}), 400
+
+    poll = polls_collection.find_one({"_id": poll_object_id})
+    if not poll:
+        return jsonify({"success": False, "message": "Poll not found."}), 404
+
+    existing_vote = interactions_collection.find_one({
+        "poll_id": poll_object_id,
+        "username": username,
+        "type": "vote"
+    })
+
+    if existing_vote:
+        return jsonify({"success": False, "message": "User already voted in this poll."}), 403
+
+    interactions_collection.insert_one({
+        "poll_id": poll_object_id,
+        "username": username,
+        "type": "vote",
+        "answer": selected_answer
+    })
+
+    update_key = f"results.{selected_answer}"
+    polls_collection.update_one({"_id": poll_object_id}, {"$inc": {update_key: 1}})
+
+    updated_poll = polls_collection.find_one({"_id": poll_object_id}, {"results": 1, "choices": 1})
+    if not updated_poll:
+        return jsonify({"success": False, "message": "Poll update failed."}), 500
+
+    # Map valid results to choice names
+    results_with_names = []
+    for key, count in updated_poll["results"].items():
+        index = ord(key) - 97
+        if 0 <= index < len(updated_poll["choices"]):  # Ensure the index is valid
+            results_with_names.append({"choice": updated_poll["choices"][index], "votes": count})
+        else:
+            print(f"Ignoring invalid key '{key}' in poll results")  # Debugging log
+
+    return jsonify({"success": True, "results": results_with_names})
 
 if __name__ == "__main__":
-    socketio.run(app, debug=True, host="0.0.0.0", port=8080)
+    threading.Thread(target=broadcast_timer, daemon=True).start()
+    socketio.run(app, debug=True, host="0.0.0.0", port=8080, allow_unsafe_werkzeug=True)
