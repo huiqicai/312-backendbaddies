@@ -6,26 +6,37 @@ function initWs() {
 
     socket = io(socketUrl, {
         transports: ['websocket'], 
-        upgrade: false, 
+        upgrade: false,
     });
 
+    // Handle WebSocket connection
     socket.on('connect', () => {
         console.log("WebSocket connection established");
-        joinQuizRooms(); 
     });
 
-    socket.on('new_comment', (data) => {
-        const commentsList = document.querySelector(`#quiz-${data.quiz_id} .comments-list`);
-        if (commentsList) {
-            const commentHtml = `<li><strong>${data.username}</strong>: ${data.text}</li>`;
-            commentsList.insertAdjacentHTML('beforeend', commentHtml);
-        }
+    socket.on('disconnect', () => {
+        console.log("WebSocket connection closed");
+    });
+
+    socket.on('update_times', (activeUsers) => {
+        console.log("Received active users update:", activeUsers);
+        updateActiveUsersList(activeUsers); 
     });
 
     socket.on('like_quiz', (data) => {
         const likeCountElement = document.querySelector(`#like-count-${data.quiz_id}`);
         if (likeCountElement) {
-            likeCountElement.textContent = data.likes_users.length;
+            likeCountElement.textContent = data.likes_count;
+        }
+
+        const likesList = document.getElementById(`likes-list-${data.quiz_id}`);
+        if (likesList) {
+            likesList.innerHTML = ''; 
+            data.likes_users.forEach((user) => {
+                const listItem = document.createElement('li');
+                listItem.textContent = user;
+                likesList.appendChild(listItem);
+            });
         }
     });
 
@@ -48,8 +59,12 @@ function initWs() {
         }
     });
 
-    socket.on('disconnect', () => {
-        console.log("WebSocket connection closed");
+    socket.on('new_comment', (data) => {
+        const commentsList = document.querySelector(`#quiz-${data.quiz_id} .comments-list`);
+        if (commentsList) {
+            const commentHtml = `<li><strong>${data.username}</strong>: ${data.text}</li>`;
+            commentsList.insertAdjacentHTML('beforeend', commentHtml);
+        }
     });
 
     socket.on('error', (error) => {
@@ -57,12 +72,34 @@ function initWs() {
     });
 }
 
-function joinQuizRooms() {
-    const quizItems = document.querySelectorAll('[data-quiz-id]');
-    quizItems.forEach((quizItem) => {
-        const quizId = quizItem.getAttribute('data-quiz-id');
-        socket.emit('joinRoom', { quizId }); 
-        console.log(`Joined WebSocket room for quiz ${quizId}`);
+function showDetails(quizId){
+    window.location.href = `/quiz/${quizId}`;
+}
+
+function sendActivityUpdate(userId) {
+    fetch('/track_user_activity', {
+        method: 'POST',
+        headers: {
+            'Content-Type': 'application/x-www-form-urlencoded',
+        },
+        body: `user_id=${encodeURIComponent(userId)}`,
+    }).catch(error => console.error('Error updating activity:', error));
+}
+
+function updateActiveUsersList(activeUsers) {
+    const activeUsersList = document.getElementById('active-users-list');
+    if (!activeUsersList) {
+        console.error("Active users list element not found");
+        return;
+    }
+
+    activeUsersList.innerHTML = ''; 
+
+    Object.entries(activeUsers).forEach(([userId, activeTime]) => {
+        const listItem = document.createElement('li');
+        listItem.id = `user-${userId}`;
+        listItem.textContent = `User ${userId}: ${activeTime}s active`;
+        activeUsersList.appendChild(listItem);
     });
 }
 
@@ -70,31 +107,32 @@ function likeQuiz(quizId) {
     fetch('/interact', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: `quiz_id=${quizId}&type=like`
+        body: `quiz_id=${encodeURIComponent(quizId)}&type=like`,
     }).catch(error => console.error('Error during like/unlike:', error));
 }
 
 function submitComment(event, quizId) {
     event.preventDefault();
-    const commentInput = document.getElementById(`comment-input-${quizId}`);
-    const commentText = commentInput.value.trim();
 
-    if (!commentText) {
-        alert('Comment cannot be empty.');
-        return;
-    }
+    const inputElement = document.getElementById(`comment-input-${quizId}`);
+    const commentText = inputElement.value.trim();
 
-    fetch(`/comment_quiz/${quizId}`, {
+    if (!commentText) return;
+
+    fetch('/submit_comment', {
         method: 'POST',
         headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: `comment=${encodeURIComponent(commentText)}`
-    }).then(response => {
-        if (response.ok) {
-            commentInput.value = '';
-        } else {
-            alert('Failed to submit comment.');
-        }
-    });
+        body: `quiz_id=${encodeURIComponent(quizId)}&text=${encodeURIComponent(commentText)}`,
+    })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                inputElement.value = ''; 
+            } else {
+                console.error('Failed to submit comment:', data.message);
+            }
+        })
+        .catch(error => console.error('Error submitting comment:', error));
 }
 
 function showLikes(quizId) {
@@ -130,12 +168,21 @@ function addQuestion() {
     }
 }
 
-function showDetails(quizId){
-    window.location.href = `/quiz/${quizId}`;
+
+function startUserActivityTracking(userId) {
+    initWs();
+
+    setInterval(() => {
+        sendActivityUpdate(userId);
+    }, 1000);
 }
 
+
+
+// Ensure the DOM is fully loaded before initializing
 document.addEventListener('DOMContentLoaded', () => {
-    initWs(); 
+    const userId = document.body.dataset.userId || 'anonymous'; 
+    startUserActivityTracking(userId); 
 
     const addQuestionButton = document.getElementById("add-question-button");
     if (addQuestionButton) {
