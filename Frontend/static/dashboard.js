@@ -55,8 +55,24 @@ function initWs() {
     socket.on('error', (error) => {
         console.error("WebSocket error:", error);
     });
-}
 
+    const timerElement = document.getElementById('timer');
+
+    socket.on("update_timer", (data) => {
+        const timeLeft = data.time_left;
+
+        if (timeLeft >= 0) {
+            const hours = Math.floor(timeLeft / 3600);
+            const minutes = Math.floor((timeLeft % 3600) / 60);
+            const seconds = timeLeft % 60;
+
+            timerElement.textContent = `${hours.toString().padStart(2, '0')}:${minutes.toString().padStart(2, '0')}:${seconds.toString().padStart(2, '0')}`;
+        } else {
+            timerElement.textContent = "00:00:00";
+        }
+    });
+
+}
 function joinQuizRooms() {
     const quizItems = document.querySelectorAll('[data-quiz-id]');
     quizItems.forEach((quizItem) => {
@@ -140,5 +156,35 @@ document.addEventListener('DOMContentLoaded', () => {
     const addQuestionButton = document.getElementById("add-question-button");
     if (addQuestionButton) {
         addQuestionButton.addEventListener("click", addQuestion); 
+    }
+
+    const form = document.getElementById("daily-poll-form");
+
+    if (form) {
+        form.addEventListener("submit", (event) => {
+            event.preventDefault(); // Prevent the default form submission
+
+            const formData = new FormData(form);
+            console.log("Form data:", formData);
+            fetch("/submit_poll", {
+                method: "POST",
+                body: new URLSearchParams(formData),
+                headers: {
+                    "Content-Type": "application/x-www-form-urlencoded",
+                },
+            })
+                .then((response) => response.json())
+                .then((data) => {
+                    if (data.success) {
+                        window.location.reload();
+                    } else {
+                        alert(data.message || "An error occurred while submitting your vote.");
+                    }
+                })
+                .catch((error) => {
+                    console.error("Error submitting poll:", error);
+                });
+            
+        });
     }
 });
