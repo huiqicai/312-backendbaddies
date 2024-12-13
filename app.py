@@ -4,7 +4,6 @@ from flask_pymongo import PyMongo
 from flask_bcrypt import Bcrypt
 from pymongo import MongoClient
 from bson import ObjectId
-from werkzeug.utils import secure_filename
 import hashlib
 import os
 import uuid
