@@ -98,7 +98,7 @@ def profile():
     if not user:
         return redirect(url_for("home"))
     pfp = user.get("profile_picture", "/static/default-pfp.jpg")
-    response = make_response(render_template("profile.html", user_pfp=pfp))
+    response = make_response(render_template("profile.html", user_pfp=pfp, is_not_logged_in=True if validate_session() else False))
     response.headers["X-Content-Type-Options"] = "nosniff"
     return response
 
@@ -157,11 +157,11 @@ def serve_cat_image():
 
 @app.route("/")
 def home():
-    return render_template("login.html")
+    return render_template("login.html", is_not_logged_in=True if validate_session() else False)
 
 @app.route("/register_page", methods=["GET"])
 def register_page():
-    return render_template("register_page.html")
+    return render_template("register_page.html", is_not_logged_in=True if validate_session() else False)
 
 @app.template_filter('chr')
 def chr_filter(value):
@@ -198,17 +198,53 @@ def dashboard():
 
     if not quizzes:
         default_quiz = {
-            "title": "Cat Trivia",
-            "questions": {
-                "What is the most popular cat breed in the world?": {
-                    "correct_answer": "Siamese",
-                    "choices": ["Persian", "Siamese", "Maine Coon", "Bengal"]
-                }
-            },
-            "created_by": "System",
-            "likes": 0,
-            "comments": []
+    "title": "Cat Trivia",
+    "questions": {
+        "What is the most popular cat breed in the world?": {
+            "correct_answer": "Siamese",
+            "choices": ["Persian", "Siamese", "Maine Coon", "Bengal"]
+        },
+        "What is the average lifespan of an indoor cat?": {
+            "correct_answer": "15 years",
+            "choices": ["10 years", "12 years", "15 years", "20 years"]
+        },
+        "What unique feature do cats have that helps them balance?": {
+            "correct_answer": "Tail",
+            "choices": ["Whiskers", "Tail", "Claws", "Paws"]
+        },
+        "What is the scientific name for the domestic cat?": {
+            "correct_answer": "Felis catus",
+            "choices": ["Canis lupus", "Felis catus", "Panthera leo", "Equus ferus"]
+        },
+        "Which sense is most developed in cats?": {
+            "correct_answer": "Hearing",
+            "choices": ["Vision", "Hearing", "Smell", "Touch"]
+        },
+        "How many toes do most cats have on each front paw?": {
+            "correct_answer": "5",
+            "choices": ["4", "5", "6", "3"]
+        },
+        "What is a group of cats called?": {
+            "correct_answer": "Clowder",
+            "choices": ["Pack", "Clowder", "Herd", "Flock"]
+        },
+        "What does a cat use its whiskers for?": {
+            "correct_answer": "To sense their surroundings",
+            "choices": ["For decoration", "To sense their surroundings", "To clean their face", "To attract mates"]
+        },
+        "How many hours a day do cats typically sleep?": {
+            "correct_answer": "12-16 hours",
+            "choices": ["6-8 hours", "12-16 hours", "18-20 hours", "24 hours"]
+        },
+        "What is a cat’s top speed?": {
+            "correct_answer": "30 mph",
+            "choices": ["15 mph", "20 mph", "30 mph", "40 mph"]
         }
+    },
+    "created_by": "System",
+    "likes": 0,
+    "comments": []
+}
         quizzes_collection.insert_one(default_quiz)
         quizzes = [default_quiz] 
 
@@ -221,7 +257,7 @@ def dashboard():
             "question": question_text,
             "choices": choices,
             "quiz_id": random_quiz["_id"],
-            "results": {chr(97 + i): 0 for i in range(len(choices)) if choices[i].strip()},
+            "results": {choices[i].strip(): 0 for i in range(len(choices)) if choices[i].strip()},
             "date": today_datetime
         }
         polls_collection.insert_one(daily_poll)
@@ -246,7 +282,8 @@ def dashboard():
         daily_poll=daily_poll,
         poll_results=daily_poll["results"] if user_vote else None,
         correct_answer=correct_answer,
-        user_vote=user_vote
+        user_vote=user_vote,
+        is_not_logged_in=True if validate_session() else False
     )
 
 
@@ -423,7 +460,7 @@ def quiz_details(quiz_id):
         quiz = quizzes_collection.find_one({"_id": ObjectId(quiz_id)})
         if not quiz:
             return "Invalid credentials", 401
-        return render_template('quizPage.html', quiz=quiz)
+        return render_template('quizPage.html', quiz=quiz, is_not_logged_in=True if validate_session() else False)
     except Exception as e:
         # Handle any exceptions (e.g., invalid ObjectId format)
         return str(e), 400
@@ -434,8 +471,10 @@ def submit_poll():
     if not username:
         return jsonify({"success": False, "message": "User not authenticated."}), 401
 
-    poll_id = request.form.get("poll_id")
-    selected_answer = request.form.get("answer")
+    data = request.get_json()
+    poll_id = data.get("poll_id")
+    selected_answer = data.get("selected_answer")  # Match the JSON key sent by the client
+
 
     if not poll_id or not selected_answer:
         return jsonify({"success": False, "message": "Invalid request."}), 400
@@ -468,7 +507,7 @@ def submit_poll():
     update_key = f"results.{selected_answer}"
     polls_collection.update_one({"_id": poll_object_id}, {"$inc": {update_key: 1}})
 
-    updated_poll = polls_collection.find_one({"_id": poll_object_id}, {"results": 1, "choices": 1})
+    updated_poll = polls_collection.find_one({"_id": poll_object_id})
     if not updated_poll:
         return jsonify({"success": False, "message": "Poll update failed."}), 500
 

@@ -10,16 +10,18 @@
     <nav class="navbar">
         <div class="navbar-center">
             <ul>
-                <li><a href="/">Home</a></li>
-                <li><a href="/about">About</a></li>
-                <li><a href="#">Contact Us</a></li>
+                <li><a href="/dashboard">Dashboard</a></li>
                 <li><a href="/profile">Profile</a></li>
                 {% if is_not_logged_in %}
-                    <li><a href="/logout">Logout</a></li>
+                    <li>
+                        <a href="#" id="logout-link">Logout</a>
+                        <form id="logout-form" action="/logout" method="POST" style="display: none;"></form>
+                    </li>
                 {% else %}
+                    <li><a href="/">Login</a></li>
                     <li><a href="/register_page">Sign Up</a></li>
                 {% endif %}
-            </ul>
+            </ul>            
         </div>
         <button id="theme-toggle" class="theme-toggle">⚡️</button>
     </nav>
@@ -42,6 +44,12 @@
 
                 localStorage.setItem('theme', newTheme);
             });
+            if (document.getElementById("logout-link")){
+            document.getElementById("logout-link").addEventListener("click", function (event) {
+                event.preventDefault(); // Prevent default link behavior
+                document.getElementById("logout-form").submit(); // Submit the hidden form
+            });
+        }
         });
     </script>
 </body>

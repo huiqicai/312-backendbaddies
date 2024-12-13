@@ -23,10 +23,10 @@
                 <p><strong>Results:</strong></p>
                 <p>Total Votes: {{ poll_results.values()|sum }}</p>
 
-                <ul id="poll-results">
+                <ul style='list-style:none' id="poll-results">
                     {% for choice in daily_poll.choices %}
-                        <li {% if choice == correct_answer %} style="color: green; font-weight: bold;" {% endif %}>
-                            {{ choice }}
+                        <li {% if choice == correct_answer %} style="color: green; font-weight: bold; border: 1px solid green" {% elif choice == user_vote.answer and choice !=correct_answer %} style="color: red; font-weight: bold; border: 1px solid red"  {% endif %}>
+                            <div style="display: flex; justify-content:space-between; padding-inline: 1re;"><div>{{ choice }}</div><div>Vote count: {{ poll_results[choice] }}</div></div>
                         </li>
                     {% endfor %}
                 </ul>
@@ -38,7 +38,7 @@
                     <div>
                         {% for choice in daily_poll.choices %}
                             <label>
-                                <input type="radio" name="answer" value="{{ loop.index0 | chr }}" required>
+                                <input type="radio" name="answer" value="{{ choice }}" required>
                                 {{ choice }}
                             </label>
                         {% endfor %}
