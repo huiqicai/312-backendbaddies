@@ -1,8 +1,6 @@
 services:
   mongo:
     image: mongo:4.2.5
-    ports:
-      - '59824:59824'
   app:
     build: .
     environment:
