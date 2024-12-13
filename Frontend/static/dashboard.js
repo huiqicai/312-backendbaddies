@@ -165,12 +165,16 @@ document.addEventListener('DOMContentLoaded', () => {
             event.preventDefault(); // Prevent the default form submission
 
             const formData = new FormData(form);
-            console.log("Form data:", formData);
+            const pollId = formData.get("poll_id"); // Get the hidden input value
+            const selectedAnswer = formData.get("answer");
             fetch("/submit_poll", {
                 method: "POST",
-                body: new URLSearchParams(formData),
+                body: JSON.stringify({
+                    poll_id: pollId,
+                    selected_answer: selectedAnswer
+                }),
                 headers: {
-                    "Content-Type": "application/x-www-form-urlencoded",
+                    "Content-Type": "application/json",
                 },
             })
                 .then((response) => response.json())
