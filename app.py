@@ -21,7 +21,7 @@ socketio = SocketIO(app, cors_allowed_origins="*", async_mode="threading", trans
 
 bcrypt = Bcrypt(app)
 
-mongo_client = MongoClient('mongo')  
+mongo_client = MongoClient('mongo')
 
 db = mongo_client['user_auth_db']
 users_collection = db['users']
@@ -486,4 +486,4 @@ def submit_poll():
 
 if __name__ == "__main__":
     threading.Thread(target=broadcast_timer, daemon=True).start()
-    socketio.run(app, debug=True, host="0.0.0.0", port=8080, allow_unsafe_werkzeug=True)
+    socketio.run(app, debug=True, host="0.0.0.0", port=8080)
