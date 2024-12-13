@@ -26,13 +26,13 @@
                 <ul style='list-style:none' id="poll-results">
                     {% for choice in daily_poll.choices %}
                         <li {% if choice == correct_answer %} style="color: green; font-weight: bold; border: 1px solid green" {% elif choice == user_vote.answer and choice !=correct_answer %} style="color: red; font-weight: bold; border: 1px solid red"  {% endif %}>
-                            <div style="display: flex; justify-content:space-between; padding-inline: 1re;"><div>{{ choice }}</div><div>Vote count: {{ poll_results[choice] }}</div></div>
+                            <div style="display: flex; justify-content:space-between; padding-inline: 1re;"><div>{{ choice }}</div><div>{{ (poll_results[choice]/(poll_results.values()| sum))*100 }}%</div></div>
                         </li>
                     {% endfor %}
                 </ul>
             {% else %}
-                <p>{{ daily_poll.question }}</p>
                 <p>Time left to vote: <span id="timer"></span></p>
+                <p>{{ daily_poll.question }}</p>
                 <form id="daily-poll-form">
                     <input type="hidden" name="poll_id" value="{{ daily_poll._id }}">
                     <div>
@@ -68,17 +68,15 @@
 
         <section class="available-quizzes">
             <h2>Available Quizzes</h2>
-            <ul id="quizzes-list" class="quiz-list">
+            <ul id="quizzes-list" style='list-style:none;' class="quiz-list">
                 {% for quiz in quizzes %}
                 <li class="quiz-item" id="quiz-{{ quiz._id }}" data-quiz-id="{{ quiz._id }}">
-                    <h3 class="quiz-title">{{ quiz.title | e }}</h3>
+                    <h3 class="quiz-title"><a href='/quiz/{{ quiz._id }}'>{{ quiz.title | e }}</a></h3>
                     <p class="quiz-creator">Created by: <span>{{ quiz.created_by | e }}</span></p>
                     <div class="likes-section">
                         <p>Likes: <span class="likes-count" id="like-count-{{ quiz._id }}">{{ quiz.likes }}</span></p>
                         <button onclick="likeQuiz('{{ quiz._id }}')" class="button like-button">Like/Unlike</button>
-                        <button onclick="showLikes('{{ quiz._id }}')" class="button show-likes-button">Show Likes</button>
-                        <button onclick="window.location.href='/quiz/{{ quiz._id }}'" class="button show-details-button">Show Details</button>
-                    </div>
+                        <button onclick="showLikes('{{ quiz._id }}')" class="button show-likes-button">Show Likes</button>                    </div>
                     <div id="likes-modal-{{ quiz._id }}" class="likes-modal" style="display: none;">
                         <div class="modal-content">
                             <span class="close-button" onclick="closeLikesModal('{{ quiz._id }}')">&times;</span>

@@ -511,16 +511,7 @@ def submit_poll():
     if not updated_poll:
         return jsonify({"success": False, "message": "Poll update failed."}), 500
 
-    # Map valid results to choice names
-    results_with_names = []
-    for key, count in updated_poll["results"].items():
-        index = ord(key) - 97
-        if 0 <= index < len(updated_poll["choices"]):  # Ensure the index is valid
-            results_with_names.append({"choice": updated_poll["choices"][index], "votes": count})
-        else:
-            print(f"Ignoring invalid key '{key}' in poll results")  # Debugging log
-
-    return jsonify({"success": True, "results": results_with_names})
+    return jsonify({"success": True})
 
 if __name__ == "__main__":
     threading.Thread(target=broadcast_timer, daemon=True).start()
